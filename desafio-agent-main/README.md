@@ -25,7 +25,7 @@ Demonstrar competências em:
 - **LangGraph** → Orquestração de agentes autônomos  
 - **RAG** → Busca semântica e contextualização via ChromaDB  
 - **Persistência** → PostgreSQL (dados) + Redis (memória/cache)  
-- **LLM Provider** → Ollama (modelos locais: *Llama3*, *nomic-embed-text*)  
+- **LLM Provider** → Ollama (modelos locais: *Llama3*, *nomic-embed-text*) e OpenAI GPT
 - **Frontend** → Vue 3 + Vite (CRUD de prompts e execução de agentes)  
 - **Infra** → Docker + Docker Compose + GitHub Actions (CI/CD)  
 
@@ -73,7 +73,7 @@ Demonstrar competências em:
 - **Banco**: PostgreSQL 15  
 - **Cache/Memória**: Redis 7  
 - **Vector DB**: ChromaDB  
-- **LLM**: Ollama (modelos locais)  
+- **LLM**: Ollama (modelos locais) e OpenAI GPT
 - **Frontend**: Vue 3 + Vite  
 - **Infra**: Docker, Docker Compose, GitHub Actions  
 
@@ -146,13 +146,13 @@ pytest tests/ --cov=src
 ## 📈 Diferenciais Implementados  
 - Multi-Agent Collaboration  
 - Prompt Engineering Interface (frontend Vue)  
-- RAG integrado (Chroma + Ollama)  
+- RAG integrado (Chroma + Ollama | OpenAI GPT)  
 - Memory Management com Redis  
 - Cost Tracking por execução/agente  
 - Logging em todas as rotas  
 - Middleware de erros customizado  
 - CI/CD configurado (GitHub Actions)  
-- Persistência para embeddings (Chroma) e modelos (Ollama)  
+- Persistência para embeddings (Chroma) e modelos (Ollama, OpenAI GPT)  
 
 ---
 
