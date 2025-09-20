@@ -45,6 +45,8 @@
       </ul>
     </div>
 
+    <CostHistory :summary="costSummary" />
+
     <Toast v-if="toast.message" :message="toast.message" :type="toast.type" />
   </div>
 </template>
@@ -52,6 +54,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import Toast from "./Toast.vue";
+import CostHistory from "./CostHistory.vue";
 
 const apiAgents = "http://localhost:8000/api/v1/agents";
 
@@ -63,6 +66,8 @@ const memory = ref<any[]>([]);
 const toast = ref({ message: "", type: "info" });
 const loading = ref(false);
 
+const costSummary = ref({ total_cost: 0, average_cost: 0, executions: 0 });
+
 async function fetchAgents() {
   try {
     const res = await fetch(apiAgents);
@@ -73,6 +78,13 @@ async function fetchAgents() {
   } catch (err) {
     toast.value = { message: "Erro ao buscar agentes.", type: "error" };
   }
+}
+
+async function fetchCosts(agentId: string) {
+  const res = await fetch(`http://localhost:8000/api/v1/agents/${agentId}/costs/summary`);
+  if (!res.ok) return;
+  const data = await res.json();
+  costSummary.value = data;
 }
 
 async function askAgent() {
@@ -97,6 +109,8 @@ async function askAgent() {
     memory.value = data.memory || [];
 
     toast.value = { message: "Execução realizada com sucesso!", type: "success" };
+
+    await fetchCosts(selectedAgentId.value);
   } catch (err: any) {
     toast.value = { message: err.message, type: "error" };
   } finally {
@@ -128,7 +142,9 @@ async function clearMemory() {
   }
 }
 
-onMounted(fetchAgents);
+onMounted(() => {
+  fetchAgents();
+});
 </script>
 
 <style scoped>

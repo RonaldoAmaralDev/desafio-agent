@@ -2,38 +2,33 @@
   <div class="prompt-manager">
     <h2>Gestão de Prompts</h2>
 
-    <!-- Formulário de criação -->
     <div class="form-card">
       <h3>Criar novo prompt</h3>
       <form @submit.prevent="createPrompt" class="form-grid">
-
-        <!-- Linha com Nome + Agente -->
         <div class="form-row">
           <div class="form-group">
             <label for="prompt-name">Nome</label>
             <input id="prompt-name" v-model="newPrompt.name" placeholder="Nome" required />
           </div>
 
-        <div class="form-group">
-        <label for="agent-select">Agente</label>
-        <select id="agent-select" v-model="selectedAgentId" v-if="agents.length > 0">
-            <option v-for="agent in agents" :key="agent.id" :value="agent.id">
-            {{ agent.name }}
-            </option>
-        </select>
-        <div v-else class="no-agents">
-            Nenhum agente disponível
-        </div>
-        </div>
+          <div class="form-group">
+            <label for="agent-select">Agente</label>
+            <select id="agent-select" v-model="selectedAgentId" v-if="agents.length > 0">
+              <option v-for="agent in agents" :key="agent.id" :value="agent.id">
+                {{ agent.name }}
+              </option>
+            </select>
+            <div v-else class="no-agents">
+              Nenhum agente disponível
+            </div>
+          </div>
         </div>
 
-        <!-- Descrição -->
         <div class="form-group">
           <label for="prompt-description">Descrição</label>
           <input id="prompt-description" v-model="newPrompt.description" placeholder="Descrição" />
         </div>
 
-        <!-- Conteúdo -->
         <div class="form-group">
           <label for="prompt-content">Conteúdo do prompt</label>
           <textarea id="prompt-content" v-model="newPrompt.content" placeholder="Conteúdo do prompt" required></textarea>
@@ -43,7 +38,6 @@
       </form>
     </div>
 
-    <!-- Lista de prompts -->
     <div class="prompts-list">
       <h3>Prompts existentes</h3>
       <div v-for="prompt in prompts" :key="prompt.id" class="prompt-card">
@@ -52,7 +46,9 @@
           <span class="description">{{ prompt.description }}</span>
         </div>
         <div class="prompt-actions">
-          <button @click="testPrompt(prompt.id)" class="btn-test" :disabled="loading">Testar</button>
+          <button @click="testPrompt(prompt.id)" class="btn-test" :disabled="loading">
+            {{ loading ? "Testando..." : "Testar" }}
+          </button>
         </div>
         <div v-if="testResults[prompt.id]" class="test-result">
           <strong>Resultado:</strong>
@@ -71,6 +67,8 @@
       </ul>
     </div>
 
+  <CostHistory :summary="costSummary" />
+
     <div v-if="loading" class="loading">
       <div class="spinner"></div>
       <span>Aguarde, processando...</span>
@@ -83,17 +81,19 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import Toast from "./Toast.vue";
+import CostHistory from "./CostHistory.vue";
 
 const apiBase = "http://localhost:8000/api/v1/prompts";
 const apiAgents = "http://localhost:8000/api/v1/agents";
 
-const prompts = ref([]);
-const agents = ref([]);
-const testResults = ref({});
+const prompts = ref<any[]>([]);
+const agents = ref<any[]>([]);
+const testResults = ref<{ [key: string]: string }>({});
 const toast = ref({ message: "", type: "info" });
 
 const answer = ref<string>("");
 const memory = ref<any[]>([]);
+const costSummary = ref({ total_cost: 0, average_cost: 0, executions: 0 });
 const loading = ref(false);
 
 const newPrompt = ref({
@@ -103,7 +103,7 @@ const newPrompt = ref({
   version: "1.0"
 });
 
-const selectedAgentId = ref(null);
+const selectedAgentId = ref<string | null>(null);
 
 async function fetchPrompts() {
   try {
@@ -121,6 +121,13 @@ async function fetchAgents() {
   } catch (err) {
     toast.value = { message: "Erro ao buscar agentes.", type: "error" };
   }
+}
+
+async function fetchCosts(agentId: string) {
+  const res = await fetch(`http://localhost:8000/api/v1/agents/${agentId}/costs/summary`);
+  if (!res.ok) return;
+  const data = await res.json();
+  costSummary.value = data;
 }
 
 async function createPrompt() {
@@ -147,12 +154,12 @@ async function createPrompt() {
     selectedAgentId.value = null;
 
     toast.value = { message: "Prompt criado com sucesso!", type: "success" };
-  } catch (err) {
+  } catch (err: any) {
     toast.value = { message: err.message, type: "error" };
   }
 }
 
-async function testPrompt(promptId) {
+async function testPrompt(promptId: string) {
   loading.value = true;
   answer.value = "";
   memory.value = [];
@@ -185,7 +192,9 @@ async function testPrompt(promptId) {
     memory.value = data.memory || [];
 
     toast.value = { message: "Teste realizado com sucesso!", type: "success" };
-  } catch (err) {
+
+    await fetchCosts(prompt.agent_id);
+  } catch (err: any) {
     toast.value = { message: err.message, type: "error" };
   } finally {
     loading.value = false;
@@ -198,7 +207,6 @@ onMounted(() => {
 });
 </script>
 
-
 <style scoped>
 .prompt-manager {
   font-family: Arial, sans-serif;
@@ -206,12 +214,9 @@ onMounted(() => {
   max-width: 800px;
   margin: auto;
 }
-
 h2, h3 {
   color: #333;
 }
-
-/* Cards */
 .form-card, .prompt-card {
   background: #f9f9f9;
   padding: 20px;
@@ -219,7 +224,6 @@ h2, h3 {
   margin-bottom: 20px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
-
 .no-agents {
   padding: 10px;
   color: #999;
@@ -228,30 +232,24 @@ h2, h3 {
   border-radius: 6px;
   background: #f3f3f3;
 }
-
-/* Grid do formulário */
 .form-grid {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
-
 .form-row {
   display: flex;
   gap: 12px;
 }
-
 .form-group {
   display: flex;
   flex-direction: column;
   flex: 1;
 }
-
 .form-group label {
   font-weight: 500;
   margin-bottom: 4px;
 }
-
 input, select, textarea {
   padding: 10px 12px;
   border: 1px solid #ccc;
@@ -260,17 +258,13 @@ input, select, textarea {
   width: 100%;
   box-sizing: border-box;
 }
-
 select {
   height: 42px;
 }
-
 textarea {
   min-height: 100px;
   resize: vertical;
 }
-
-/* Botões */
 button {
   padding: 10px 16px;
   border: none;
@@ -278,42 +272,24 @@ button {
   cursor: pointer;
   font-weight: 500;
 }
-
 .btn-create {
   background-color: #4caf50;
   color: white;
 }
-
 .btn-create:hover {
   background-color: #45a049;
 }
-
 .btn-test {
   background-color: #2196f3;
   color: white;
 }
-
 .btn-test:hover {
   background-color: #1976d2;
 }
-
-/* Lista de prompts */
-.prompts-list .prompt-card {
-  display: flex;
-  flex-direction: column;
+button:disabled {
+  background: #bbb;
+  cursor: not-allowed;
 }
-
-.prompt-header {
-  font-size: 1.1em;
-  margin-bottom: 6px;
-}
-
-.description {
-  color: #666;
-  font-size: 0.9em;
-  margin-left: 5px;
-}
-
 .test-result {
   margin-top: 10px;
   padding: 10px;
@@ -321,17 +297,11 @@ button {
   border-left: 4px solid #2196f3;
   border-radius: 6px;
 }
-
 .test-result pre {
   white-space: pre-wrap;
   word-wrap: break-word;
   font-family: inherit;
   margin: 0;
-}
-
-button:disabled {
-  background: #bbb;
-  cursor: not-allowed;
 }
 .loading {
   margin-top: 1rem;
@@ -353,8 +323,7 @@ button:disabled {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
-
-.response-box, .memory-box {
+.memory-box {
   margin-top: 1.5rem;
   padding: 1rem;
   background: #e3f2fd;
@@ -371,5 +340,8 @@ button:disabled {
   padding: 8px;
   border-radius: 6px;
   border: 1px solid #ddd;
+}
+.description {
+  margin-left: 15px;
 }
 </style>

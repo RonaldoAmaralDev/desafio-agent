@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import List
 from pydantic import BaseModel
 import asyncio
@@ -7,6 +8,7 @@ import asyncio
 from app.db.session import get_db
 from app.models.agent import Agent
 from app.models.execution_cost import ExecutionCost
+from app.models.execution import Execution
 from app.schemas.agent import AgentSchema, AgentCreate
 from app.core.logging import get_logger
 from langchain_ollama import ChatOllama
@@ -15,6 +17,10 @@ from app.core.memory import save_agent_memory, get_agent_memory, clear_agent_mem
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 logger = get_logger(__name__)
+
+# ------------------------
+# MODELS
+# ------------------------
 
 class CollaborationRequest(BaseModel):
     task: str
@@ -27,7 +33,13 @@ class RunRequest(BaseModel):
 
 class RunResponse(BaseModel):
     answer: str
-    memory: list[dict] = [] 
+    memory: list[dict] = []
+    cost: float = 0.0   # 👈 novo campo
+
+
+# ------------------------
+# ENDPOINTS
+# ------------------------
 
 @router.post("/", response_model=AgentSchema)
 def create_agent(agent: AgentCreate, db: Session = Depends(get_db)):
@@ -56,9 +68,6 @@ def list_agents(db: Session = Depends(get_db)):
 
 @router.post("/{agent_id}/run", response_model=RunResponse)
 def run_agent(agent_id: str, payload: RunRequest, db: Session = Depends(get_db)):
-    """
-    Executa um agente Ollama pelo ID com memória de curto prazo.
-    """
     agent = db.query(Agent).filter(Agent.id == agent_id).first()
     if not agent:
         raise HTTPException(status_code=404, detail="Agente não encontrado")
@@ -67,36 +76,51 @@ def run_agent(agent_id: str, payload: RunRequest, db: Session = Depends(get_db))
         raise HTTPException(status_code=400, detail="Somente agentes Ollama suportados nesta versão")
 
     try:
-        memory = get_agent_memory(agent.id)
-        context = "\n".join([f"Você: {m['input']}\nAgente: {m['output']}" for m in memory])
-
-        final_input = f"""
-        Contexto das últimas interações:
-        {context}
-
-        Nova pergunta:
-        {payload.input}
-        """
-
         llm = ChatOllama(
             model=agent.model,
             base_url=agent.base_url,
             temperature=agent.temperature or 0
         )
 
+        memory = get_agent_memory(agent.id)
+
+        context = summarize_memory(agent.id, memory, llm)
+
+        final_input = f"""
+        Você é um assistente útil. Use o histórico abaixo apenas como contexto.
+
+        Histórico resumido da conversa:
+        {context}
+
+        Pergunta atual do usuário:
+        {payload.input}
+
+        Responda de forma direta, sem repetir o histórico.
+        """
+
         res = llm.invoke(final_input)
         answer = res.content if hasattr(res, "content") else str(res)
 
+        # Salvar execução no banco
+        execution = Execution(agent_id=agent.id, input=payload.input, output=answer)
+        db.add(execution)
+        db.commit()
+        db.refresh(execution)
+
+        # Calcular custo (simulação: R$0.001 por caractere da resposta)
+        cost = len(answer) * 0.001
+        register_execution_cost(db, execution.id, agent.id, cost)
+
+        # Atualizar memória
         save_agent_memory(agent.id, payload.input, answer)
 
-        logger.info(f"Agente {agent.id} executado com sucesso com memória")
         return {
             "answer": answer,
-            "memory": get_agent_memory(agent.id)
+            "memory": get_agent_memory(agent.id),
+            "cost": cost
         }
 
     except Exception as e:
-        logger.error(f"Erro ao executar agente {agent.id}: {e}")
         raise HTTPException(status_code=500, detail=f"Erro ao executar agente: {e}")
 
 
@@ -145,3 +169,64 @@ def register_execution_cost(db: Session, execution_id: int, agent_id: int, cost:
     db.add(execution_cost)
     db.commit()
     logger.info(f"Custo registrado com sucesso para agent_id={agent_id}")
+
+
+@router.get("/{agent_id}/costs")
+def list_agent_costs(agent_id: int, db: Session = Depends(get_db)):
+    """
+    Lista todas as execuções e custos de um agente.
+    """
+    costs = db.query(ExecutionCost).filter(ExecutionCost.agent_id == agent_id).all()
+    if not costs:
+        raise HTTPException(status_code=404, detail="Nenhum custo encontrado para este agente")
+    
+    return [
+        {
+            "execution_id": c.execution_id,
+            "cost": c.cost,
+            "created_at": c.created_at
+        }
+        for c in costs
+    ]
+
+
+@router.get("/{agent_id}/costs/summary")
+def summarize_agent_costs(agent_id: int, db: Session = Depends(get_db)):
+    """
+    Retorna o custo total e estatísticas de um agente.
+    """
+
+    total, avg, count = db.query(
+        func.sum(ExecutionCost.cost),
+        func.avg(ExecutionCost.cost),
+        func.count(ExecutionCost.id)
+    ).filter(ExecutionCost.agent_id == agent_id).first()
+
+    return {
+        "total_cost": total or 0,
+        "average_cost": avg or 0,
+        "executions": count or 0
+    }
+
+def summarize_memory(agent_id: str, memory: list[dict], llm: ChatOllama) -> str:
+    """
+    Usa o modelo para resumir a memória em poucas frases.
+    """
+    if not memory:
+        return ""
+
+    recent_memory = memory[-10:]
+    joined = "\n".join([f"Usuário: {m['input']}\nAssistente: {m['output']}" for m in recent_memory])
+
+    prompt = f"""
+    Resuma de forma clara e objetiva a conversa abaixo em no máximo 5 frases.
+    Concentre-se no contexto relevante para continuar o diálogo, sem repetir literalmente:
+
+    {joined}
+    """
+
+    try:
+        summary = llm.invoke(prompt)
+        return summary.content if hasattr(summary, "content") else str(summary)
+    except Exception:
+        return joined
