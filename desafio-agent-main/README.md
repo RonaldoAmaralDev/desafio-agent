@@ -91,8 +91,8 @@ docker compose up --build
 ```
 
 4. **Acesse a API**
-- API Docs: http://localhost:8000/docs
-- Health Check: http://localhost:8000/health
+- API Docs: http://localhost:8005/docs
+- Health Check: http://localhost:8005/health
 
 5. **Acesse a interface de Prompt Engineering**
 - Frontend: http://localhost:5173

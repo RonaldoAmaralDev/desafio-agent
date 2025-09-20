@@ -68,8 +68,8 @@
 import { ref, onMounted } from "vue";
 import Toast from "./Toast.vue";
 
-const apiBase = "http://localhost:8000/api/v1/prompts";
-const apiAgents = "http://localhost:8000/api/v1/agents"; // endpoint para agentes
+const apiBase = "http://localhost:8005/api/v1/prompts";
+const apiAgents = "http://localhost:8005/api/v1/agents";
 
 const prompts = ref([]);
 const agents = ref([]);

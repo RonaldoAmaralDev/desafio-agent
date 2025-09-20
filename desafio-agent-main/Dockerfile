@@ -14,8 +14,9 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copia todo o código fonte
+# Copia o código fonte e configs
 COPY ./src /app/src
+COPY alembic.ini /app/alembic.ini
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
