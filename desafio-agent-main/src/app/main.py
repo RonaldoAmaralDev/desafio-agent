@@ -36,12 +36,12 @@ app.add_middleware(
 # -------- ROTAS --------
 app.include_router(users.router, prefix="/api/v1", tags=["users"])
 app.include_router(prompts.router, prefix="/api/v1", tags=["prompts"])
-app.include_router(agents.router, prefix="/api/v1", tags=["agents"])
+app.include_router(agents.router, prefix="/api/v1/agents", tags=["agents"])
 app.include_router(executions.router, prefix="/api/v1", tags=["executions"])
 app.include_router(health.router)
 app.include_router(costs.router, prefix="/api/v1", tags=["costs"])
 app.include_router(agents_export_import.router, prefix="/api/v1", tags=["agents export/import"])
-app.include_router(rag.router, prefix="/api/v1", tags=["rag"])  # <<< Novo: RAG integrado
+app.include_router(rag.router, prefix="/api/v1", tags=["rag"])
 
 # Middleware de erros customizado
 app.add_middleware(ErrorHandlerMiddleware)
