@@ -4,7 +4,7 @@
 
 ## 📋 Descrição do Projeto
 
-API desenvolvida como desafio técnico para a vaga de Engenheiro(a) de Software Full Stack Sênior.  
+API desenvolvida como desafio técnico.  
 O sistema permite a criação, gestão e orquestração de agentes de Inteligência Artificial utilizando **LangGraph** e **RAG**, com suporte a:
 
 - ✅ CRUD completo para gerenciamento de prompts e agentes
@@ -13,6 +13,8 @@ O sistema permite a criação, gestão e orquestração de agentes de Inteligên
 - ✅ **Busca semântica de documentos** via Chroma Vector DB
 - ✅ **FastAPI microservice** para consultas com contexto
 - ✅ Integração com bases de conhecimento externas
+- ✅ **Streaming de respostas** e **histórico de interações**
+- ✅ **Cálculo de custos** por transação e total geral
 
 ---
 
@@ -36,15 +38,11 @@ git clone https://github.com/RonaldoAmaralDev/desafio-agent.git
 cd desafio-agent
 ```
 
-### 2. Criar arquivo `.env`
-Crie um arquivo `.env` na raiz do projeto com o seguinte conteúdo:
+### 2. Configurar variáveis de ambiente
+Copie o arquivo `.env.example` para `.env` e ajuste os valores conforme necessário:
 
-```env
-APP_PORT=3000
-DATABASE_USER=postgres
-DATABASE_PASSWORD=postgres
-DATABASE_NAME=desafio
-OPENAI_API_KEY=sk-xxxxxx
+```bash
+cp .env.example .env
 ```
 
 ### 3. Subir os containers
@@ -76,9 +74,7 @@ Envie uma pergunta ao **microserviço FastAPI** que consulta documentos no **Chr
 
 Exemplo de requisição:
 ```bash
-curl --location 'http://localhost:8001/api/assistant/query' \
---header 'Content-Type: application/json' \
---data '{"question": "Quem foi Pedro Álvares Cabral?"}''
+curl --location 'http://localhost:8001/api/assistant/query' --header 'Content-Type: application/json' --data '{"question": "Quem foi Pedro Álvares Cabral?"}'
 ```
 
 Resposta (exemplo):
@@ -96,14 +92,37 @@ Resposta (exemplo):
 - Persistência de contexto e documentos em **ChromaDB**
 - Uso de **LangGraph** para orquestrar agentes e fluxos de execução
 - Integração transparente via **Docker Compose**
+- **Streaming de respostas** para queries longas
+- **Cálculo de custos por request e acumulado** (controle de uso de tokens e billing)
 
 ---
 
-## Caso tenha interesse de limpar o banco de dados
+## 🧪 Testes
+
+Para rodar os testes unitários e de integração:
+
+1. Acesse o container da API:
+```bash
+docker exec -it desafio-agent-api bash
+```
+
+2. Execute os testes com cobertura:
+```bash
+pytest tests/ --cov=src
+```
+
+---
+
+## 🔄 Reset do Banco de Dados
+
+Caso tenha interesse em limpar o banco de dados:
 ```bash
 chmod +x scripts/reset-db.sh
 ./scripts/reset-db.sh
 ```
+
+---
+
 ## 👨‍💻 Autor
 
 Desenvolvido por **Ronaldo Amaral**  
