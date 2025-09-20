@@ -53,8 +53,10 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import Toast from "./Toast.vue";
+import { useToast } from "vue-toastification"
 import CostHistory from "./CostHistory.vue";
+
+const toast = useToast()
 
 const apiAgents = "http://localhost:8000/api/v1/agents";
 
@@ -63,7 +65,6 @@ const selectedAgentId = ref<string>("");
 const question = ref<string>("");
 const answer = ref<string>("");
 const memory = ref<any[]>([]);
-const toast = ref({ message: "", type: "info" });
 const loading = ref(false);
 
 const costSummary = ref({ total_cost: 0, average_cost: 0, executions: 0 });
@@ -75,8 +76,8 @@ async function fetchAgents() {
     if (agents.value.length > 0) {
       selectedAgentId.value = agents.value[0].id;
     }
-  } catch (err) {
-    toast.value = { message: "Erro ao buscar agentes.", type: "error" };
+  } catch (err: any) {
+    toast.error("Ocorreu o erro: " + err.message)
   }
 }
 
@@ -108,11 +109,11 @@ async function askAgent() {
     answer.value = data.answer;
     memory.value = data.memory || [];
 
-    toast.value = { message: "Execução realizada com sucesso!", type: "success" };
+    toast.success("Execução realizada com sucesso!");
 
     await fetchCosts(selectedAgentId.value);
   } catch (err: any) {
-    toast.value = { message: err.message, type: "error" };
+    toast.error("Ocorreu o erro: " + err.message)
   } finally {
     loading.value = false;
   }
@@ -134,9 +135,9 @@ async function clearMemory() {
 
     await res.json();
     memory.value = [];
-    toast.value = { message: "Memória limpa com sucesso!", type: "success" };
+    toast.success("Memória limpa com sucesso!");
   } catch (err: any) {
-    toast.value = { message: err.message, type: "error" };
+    toast.error("Ocorreu o erro: " + err.message)
   } finally {
     loading.value = false;
   }

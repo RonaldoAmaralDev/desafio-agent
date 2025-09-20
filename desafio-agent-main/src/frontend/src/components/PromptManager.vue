@@ -80,8 +80,10 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import Toast from "./Toast.vue";
 import CostHistory from "./CostHistory.vue";
+import { useToast } from "vue-toastification"
+
+const toast = useToast()
 
 const apiBase = "http://localhost:8000/api/v1/prompts";
 const apiAgents = "http://localhost:8000/api/v1/agents";
@@ -89,7 +91,6 @@ const apiAgents = "http://localhost:8000/api/v1/agents";
 const prompts = ref<any[]>([]);
 const agents = ref<any[]>([]);
 const testResults = ref<{ [key: string]: string }>({});
-const toast = ref({ message: "", type: "info" });
 
 const answer = ref<string>("");
 const memory = ref<any[]>([]);
@@ -109,8 +110,8 @@ async function fetchPrompts() {
   try {
     const res = await fetch(apiBase);
     prompts.value = await res.json();
-  } catch (err) {
-    toast.value = { message: "Erro ao buscar prompts.", type: "error" };
+  } catch (err: any) {
+    toast.error("Ocorreu o erro: " + err.message)
   }
 }
 
@@ -119,7 +120,7 @@ async function fetchAgents() {
     const res = await fetch(apiAgents);
     agents.value = await res.json();
   } catch (err) {
-    toast.value = { message: "Erro ao buscar agentes.", type: "error" };
+    toast.error('Ocorreu o erro: ' + err);
   }
 }
 
@@ -132,7 +133,7 @@ async function fetchCosts(agentId: string) {
 
 async function createPrompt() {
   if (!selectedAgentId.value) {
-    toast.value = { message: "Selecione um agente antes de criar o prompt", type: "warning" };
+    toast.warning("Selecione um agente antes de criar o prompt.");
     return;
   }
 
@@ -153,9 +154,9 @@ async function createPrompt() {
     newPrompt.value = { name: "", description: "", content: "", version: "1.0" };
     selectedAgentId.value = null;
 
-    toast.value = { message: "Prompt criado com sucesso!", type: "success" };
+    toast.sucess("Prompt criado com sucesso!");
   } catch (err: any) {
-    toast.value = { message: err.message, type: "error" };
+    toast.error("Ocorreu o erro: " + err.message)
   }
 }
 
@@ -166,12 +167,12 @@ async function testPrompt(promptId: string) {
 
   const prompt = prompts.value.find(p => p.id === promptId);
   if (!prompt) {
-    toast.value = { message: "Prompt não encontrado.", type: "error" };
+    toast.error("Prompt não foi encontrado.");
     return;
   }
 
   if (!prompt.agent_id) {
-    toast.value = { message: "Este prompt não está vinculado a um agente.", type: "warning" };
+    toast.error("Este prompt não está vinculado a um agente.");
     return;
   }
 
@@ -191,11 +192,11 @@ async function testPrompt(promptId: string) {
     testResults.value[promptId] = data.answer;
     memory.value = data.memory || [];
 
-    toast.value = { message: "Teste realizado com sucesso!", type: "success" };
+    toast.sucess("Teste realizado com sucesso!");
 
     await fetchCosts(prompt.agent_id);
   } catch (err: any) {
-    toast.value = { message: err.message, type: "error" };
+    toast.error("Ocorreu o erro: " + err.message)
   } finally {
     loading.value = false;
   }

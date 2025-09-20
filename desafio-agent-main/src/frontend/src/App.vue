@@ -9,6 +9,9 @@
         <router-link to="/agents/run" class="nav-link" active-class="active-link">
           Executar Agente
         </router-link>
+        <router-link to="/agents/import-export" class="nav-link" active-class="active-link">
+          Importação & Exportação de Agente
+        </router-link>
       </nav>
     </header>
 
@@ -32,12 +35,11 @@
   color: #333;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  min-height: 98vh;
   background: #f5f7fa;
   margin: 0;
 }
 
-/* Header */
 .app-header {
   background: #1e88e5;
   color: white;
@@ -74,7 +76,6 @@
   padding-bottom: 2px;
 }
 
-/* Conteúdo principal */
 .app-main {
   flex: 1;
   padding: 2rem;

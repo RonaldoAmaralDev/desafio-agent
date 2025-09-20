@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.db.session import engine
 from app.models.base import Base
-from app.api.v1 import users, prompts, agents, executions, health, costs, agents_export_import, rag
+from app.api.v1 import users, prompts, agents, executions, health, costs, rag, agent_export
 from app.models import execution_cost, user, agent, execution, prompt
 from app.core.error_handler import ErrorHandlerMiddleware
 from app.core.logging import configure_logging, get_logger
@@ -41,8 +41,8 @@ app.include_router(agents.router, prefix="/api/v1")
 app.include_router(executions.router, prefix="/api/v1", tags=["executions"])
 app.include_router(health.router)
 app.include_router(costs.router, prefix="/api/v1", tags=["costs"])
-app.include_router(agents_export_import.router, prefix="/api/v1", tags=["agents export/import"])
 app.include_router(rag.router, prefix="/api/v1", tags=["rag"])
+app.include_router(agent_export.router)
 
 # Middleware de erros customizado
 app.add_middleware(ErrorHandlerMiddleware)
