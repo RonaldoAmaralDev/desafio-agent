@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List
@@ -12,15 +13,12 @@ from app.models.execution import Execution
 from app.schemas.agent import AgentSchema, AgentCreate
 from app.core.logging import get_logger
 from langchain_ollama import ChatOllama
+import json
 
 from app.core.memory import save_agent_memory, get_agent_memory, clear_agent_memory
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 logger = get_logger(__name__)
-
-# ------------------------
-# MODELS
-# ------------------------
 
 class CollaborationRequest(BaseModel):
     task: str
@@ -34,12 +32,7 @@ class RunRequest(BaseModel):
 class RunResponse(BaseModel):
     answer: str
     memory: list[dict] = []
-    cost: float = 0.0   # 👈 novo campo
-
-
-# ------------------------
-# ENDPOINTS
-# ------------------------
+    cost: float = 0.0
 
 @router.post("/", response_model=AgentSchema)
 def create_agent(agent: AgentCreate, db: Session = Depends(get_db)):
@@ -66,8 +59,8 @@ def list_agents(db: Session = Depends(get_db)):
     return agents
 
 
-@router.post("/{agent_id}/run", response_model=RunResponse)
-def run_agent(agent_id: str, payload: RunRequest, db: Session = Depends(get_db)):
+@router.post("/{agent_id}/run/stream")
+def run_agent_stream(agent_id: int, payload: RunRequest, db: Session = Depends(get_db)):
     agent = db.query(Agent).filter(Agent.id == agent_id).first()
     if not agent:
         raise HTTPException(status_code=404, detail="Agente não encontrado")
@@ -76,52 +69,35 @@ def run_agent(agent_id: str, payload: RunRequest, db: Session = Depends(get_db))
         raise HTTPException(status_code=400, detail="Somente agentes Ollama suportados nesta versão")
 
     try:
-        llm = ChatOllama(
-            model=agent.model,
-            base_url=agent.base_url,
-            temperature=agent.temperature or 0
-        )
+        llm = ChatOllama(model=agent.model, base_url=agent.base_url, temperature=agent.temperature or 0)
 
-        memory = get_agent_memory(agent.id)
+        def generate():
+            full_answer = ""
+            for chunk in llm.stream(payload.input):
+                token = chunk.content or ""
+                full_answer += token
+                yield json.dumps({"type": "token", "content": token}, ensure_ascii=False) + "\n"
 
-        context = summarize_memory(agent.id, memory, llm)
+            cost = len(full_answer) * 0.001
 
-        final_input = f"""
-        Você é um assistente útil. Use o histórico abaixo apenas como contexto.
+            execution = Execution(agent_id=agent.id, input=payload.input, output=full_answer)
+            db.add(execution)
+            db.commit()
+            db.refresh(execution)
 
-        Histórico resumido da conversa:
-        {context}
+            register_execution_cost(db, execution.id, agent.id, cost)
+            save_agent_memory(agent.id, payload.input, full_answer)
 
-        Pergunta atual do usuário:
-        {payload.input}
+            history = get_agent_memory(agent.id)
 
-        Responda de forma direta, sem repetir o histórico.
-        """
+            yield json.dumps(
+                {"type": "end", "answer": full_answer, "memory": history, "cost": cost},
+                ensure_ascii=False
+            ) + "\n"
 
-        res = llm.invoke(final_input)
-        answer = res.content if hasattr(res, "content") else str(res)
-
-        # Salvar execução no banco
-        execution = Execution(agent_id=agent.id, input=payload.input, output=answer)
-        db.add(execution)
-        db.commit()
-        db.refresh(execution)
-
-        # Calcular custo (simulação: R$0.001 por caractere da resposta)
-        cost = len(answer) * 0.001
-        register_execution_cost(db, execution.id, agent.id, cost)
-
-        # Atualizar memória
-        save_agent_memory(agent.id, payload.input, answer)
-
-        return {
-            "answer": answer,
-            "memory": get_agent_memory(agent.id),
-            "cost": cost
-        }
-
+        return StreamingResponse(generate(), media_type="application/x-ndjson")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao executar agente: {e}")
+        raise HTTPException(status_code=500, detail=f"Erro no streaming: {e}")
 
 
 @router.delete("/{agent_id}/memory")

@@ -161,44 +161,69 @@ async function createPrompt() {
 }
 
 async function testPrompt(promptId: string) {
-  loading.value = true;
-  answer.value = "";
-  memory.value = [];
+  loading.value = true
+  answer.value = ""
+  memory.value = []
 
-  const prompt = prompts.value.find(p => p.id === promptId);
+  const prompt = prompts.value.find(p => p.id === promptId)
   if (!prompt) {
-    toast.error("Prompt não foi encontrado.");
-    return;
+    toast.error("Prompt não foi encontrado.")
+    loading.value = false
+    return
   }
 
   if (!prompt.agent_id) {
-    toast.error("Este prompt não está vinculado a um agente.");
-    return;
+    toast.error("Este prompt não está vinculado a um agente.")
+    loading.value = false
+    return
   }
 
   try {
-    const res = await fetch(`${apiAgents}/${prompt.agent_id}/run`, {
+    const res = await fetch(`${apiAgents}/${prompt.agent_id}/run/stream`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ input: prompt.content })
-    });
+    })
 
-    if (!res.ok) {
-      const errorData = await res.json();
-      throw new Error(errorData.detail || "Erro ao executar prompt");
+    if (!res.ok || !res.body) {
+      const errorData = await res.json().catch(() => ({}))
+      throw new Error(errorData.detail || "Erro ao executar prompt")
     }
 
-    const data = await res.json();
-    testResults.value[promptId] = data.answer;
-    memory.value = data.memory || [];
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ""
+    let streamedText = ""
 
-    toast.success("Teste realizado com sucesso!");
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
 
-    await fetchCosts(prompt.agent_id);
+      const parts = buffer.split("\n")
+      buffer = parts.pop() || ""
+
+      for (const part of parts) {
+        if (!part.trim()) continue
+        const msg = JSON.parse(part)
+
+        if (msg.type === "token") {
+          streamedText += msg.content
+          testResults.value[promptId] = streamedText
+        }
+
+        if (msg.type === "end") {
+          testResults.value[promptId] = msg.answer
+          memory.value = msg.memory || []
+          toast.success("Teste concluído com sucesso!")
+          await fetchCosts(prompt.agent_id)
+        }
+      }
+    }
   } catch (err: any) {
     toast.error("Ocorreu o erro: " + err.message)
   } finally {
-    loading.value = false;
+    loading.value = false
   }
 }
 

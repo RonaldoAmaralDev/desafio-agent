@@ -89,33 +89,52 @@ async function fetchCosts(agentId: string) {
 }
 
 async function askAgent() {
-  loading.value = true;
-  answer.value = "";
-  memory.value = [];
+  loading.value = true
+  answer.value = ""
+  memory.value = []
 
   try {
-    const res = await fetch(`${apiAgents}/${selectedAgentId.value}/run`, {
+    const res = await fetch(`${apiAgents}/${selectedAgentId.value}/run/stream`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ input: question.value })
-    });
+    })
 
-    if (!res.ok) {
-      const errorData = await res.json();
-      throw new Error(errorData.detail || "Erro ao executar agente");
+    if (!res.ok || !res.body) {
+      const errorData = await res.json().catch(() => ({}))
+      throw new Error(errorData.detail || "Erro ao executar agente")
     }
 
-    const data = await res.json();
-    answer.value = data.answer;
-    memory.value = data.memory || [];
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ""
 
-    toast.success("Execução realizada com sucesso!");
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
 
-    await fetchCosts(selectedAgentId.value);
+      const parts = buffer.split("\n")
+      buffer = parts.pop() || ""
+
+      for (const part of parts) {
+        if (!part.trim()) continue
+        const msg = JSON.parse(part)
+        if (msg.type === "token") {
+          answer.value += msg.content
+        }
+        if (msg.type === "end") {
+          answer.value = msg.answer
+          memory.value = msg.memory || []
+          toast.success("Execução concluída!")
+          await fetchCosts(selectedAgentId.value)
+        }
+      }
+    }
   } catch (err: any) {
     toast.error("Ocorreu o erro: " + err.message)
   } finally {
-    loading.value = false;
+    loading.value = false
   }
 }
 
