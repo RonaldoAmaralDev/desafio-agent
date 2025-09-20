@@ -1,10 +1,14 @@
-"""Simple RAG service: query against Chroma + OpenAI LLM.
-Replace OPENAI_API_KEY in env before running.
-"""
+"""RAG service with conversation history"""
 from langchain_community.vectorstores import Chroma
 from langchain.chains import ConversationalRetrievalChain
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain.memory import ConversationBufferMemory
 
+# 🔹 Memória global (guarda o histórico da conversa)
+memory = ConversationBufferMemory(
+    memory_key="chat_history", 
+    return_messages=True
+)
 
 def query_rag(query: str, top_k: int = 4, persist_dir: str = './chroma_db') -> str:
     # Inicializa embeddings (usa OPENAI_API_KEY do env)
@@ -17,9 +21,13 @@ def query_rag(query: str, top_k: int = 4, persist_dir: str = './chroma_db') -> s
     # Modelo LLM via OpenAI
     llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
-    # Cadeia de RAG (pergunta + contexto recuperado)
-    chain = ConversationalRetrievalChain.from_llm(llm, retriever)
+    # Cadeia de RAG com memória de histórico
+    chain = ConversationalRetrievalChain.from_llm(
+        llm=llm,
+        retriever=retriever,
+        memory=memory
+    )
 
-    # Executa query (sem memória de conversa neste exemplo)
+    # Executa query (agora com histórico de conversa)
     res = chain.invoke({"question": query})
-    return res["answer"]
+    return res["answer"] if isinstance(res, dict) else res
