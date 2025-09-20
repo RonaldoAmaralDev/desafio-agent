@@ -23,7 +23,9 @@ RUN chmod +x /entrypoint.sh
 
 # Configura variáveis de ambiente
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    OPENAI_API_KEY=${OPENAI_API_KEY}
+
 
 # Usa o entrypoint para iniciar o container
 ENTRYPOINT ["/entrypoint.sh"]

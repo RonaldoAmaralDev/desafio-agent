@@ -1,12 +1,36 @@
+# Framework web
 fastapi
 uvicorn[standard]
+python-multipart
+
+# Configuração/env
 python-dotenv
+
+# Banco e ORM
 psycopg2-binary
-redis
-alembic
 sqlalchemy
+alembic
+
+# Cache/Queue
+redis
+
+# Pydantic (com validações extra)
 pydantic[email]
-openai>=0.27.0
+
+# Testes
 pytest
 pytest-cov
-python-multipart
+
+# LLMs / RAG
+openai>=0.27.0
+tiktoken
+langchain
+langgraph
+langchain-community>=0.2.0
+langchain-ollama
+chromadb==0.4.24
+numpy<2.0
+
+# Parsing de documentos
+pypdf
+markdown

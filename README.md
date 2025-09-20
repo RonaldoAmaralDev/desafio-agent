@@ -60,10 +60,9 @@ Isso vai iniciar:
 
 ### 4. Acessar a aplicação
 - Frontend: `http://localhost:5173`
-- Documentação FastAPI (RAG): `http://localhost:8001/docs`
 - Postgres: `porta 5432`
-- API Principal: `http://localhost:8005/api`
-- ChromaDB: `http://localhost:8002`
+- API Principal: `http://localhost:8000/api`
+- ChromaDB: `http://localhost:8005`
 
 ---
 
