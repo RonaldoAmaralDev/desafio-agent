@@ -49,7 +49,7 @@ OPENAI_API_KEY=sk-xxxxxx
 
 ### 3. Subir os containers
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
 Isso vai iniciar:
