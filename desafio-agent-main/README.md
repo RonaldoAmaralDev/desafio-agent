@@ -1,149 +1,165 @@
 # 🤖 Agent Management Platform
 
-**Sistema de Gestão de Agentes de IA com LangGraph**
+**Sistema de Gestão de Agentes de IA com LangGraph + RAG**
 
 ## 📋 Descrição do Projeto
 
-API desenvolvida como desafio técnico para a vaga de Engenheiro(a) de Software Full Stack Sênior. O sistema permite a criação, gestão e orquestração de agentes de Inteligência Artificial utilizando LangGraph, com um CRUD completo para gerenciamento de prompts e configurações dos agentes.
+API desenvolvida como desafio técnico para a vaga de Engenheiro(a) de Software Full Stack Sênior.  
+O sistema permite a criação, gestão e orquestração de agentes de Inteligência Artificial utilizando **LangGraph**, com um CRUD completo para gerenciamento de prompts, integração com **RAG** (Retrieval-Augmented Generation) e interface visual para manipulação de prompts.
 
 ### 🎯 Objetivo
 
 Demonstrar competências em:
 - Desenvolvimento backend com Python (FastAPI)
-- Implementação de sistemas com IA/LLMs usando LangGraph
+- Implementação de sistemas com IA/LLMs (LangGraph + RAG)
 - Arquitetura escalável e boas práticas de desenvolvimento
 - Gestão de agentes autônomos com diferentes especialidades
+- Integração frontend/backend com Vue 3 + Vite
+
+---
 
 ## 🏗️ Arquitetura do Sistema
 
-Sistema backend em Python/FastAPI que gerencia:
-- **API REST** para operações CRUD de agentes e prompts
-- **Sistema de Agentes** com diferentes especializações usando LangGraph
-- **Persistência** com PostgreSQL e cache Redis
-- **Integração** com modelos de linguagem (OpenAI)
-- **Logging** em todas as rotas
-- **Middleware** para tratamento de erros e monitoramento
-- **CI/CD** para deploy automatizado
-- **FrontEnd** para CRUD dos prompts.
+- **API REST (FastAPI)** → operações CRUD de agentes e prompts  
+- **Agentes Autônomos** → orquestrados via LangGraph  
+- **RAG** → indexação/consulta de documentos no ChromaDB  
+- **Persistência** → PostgreSQL (dados) + Redis (cache/memória)  
+- **LLM Provider** → Ollama (Llama3 + embeddings nomic-embed-text)  
+- **Frontend** → Vue 3 + Vite para CRUD de prompts e execução de agentes  
+- **Infra** → Docker + Docker Compose  
+- **Extras** → Logging centralizado, middleware de erros, CI/CD no GitHub Actions  
+
+---
 
 ## 🚀 Funcionalidades Principais
 
-### 1. Sistema de Agentes com LangGraph
-
-- **Agentes Especializados**: Research, Code e Analysis agents para diferentes tarefas
-- **Orquestração**: Coordenação de múltiplos agentes trabalhando em conjunto
-- **Workflows com Grafos**: Fluxos complexos com decisões condicionais, loops e execução paralela
+### 1. Sistema de Agentes
+- Agentes especializados para diferentes tarefas
+- Execução via `/api/v1/agents/{id}/run`
+- Configuração dinâmica (modelo, temperatura, base_url)
 
 ### 2. CRUD de Prompts
+- Criar, editar, listar e excluir prompts
+- Validação de estrutura
+- Versionamento básico
 
-- **Gestão Completa**: Create, Read, Update, Delete de prompts
-- **Versionamento**: Sistema de versões para prompts
-- **Validação**: Validação de estrutura e sintaxe dos prompts
+### 3. RAG (Retrieval-Augmented Generation)
+- Upload de documentos (PDF, TXT, MD) via `/api/v1/rag/upload`
+- Consulta contextualizada via `/api/v1/rag/query`
+- Indexação persistente em `chroma_db/`
 
-### 3. Features
+### 4. Memory Management *(em progresso)*
+- Suporte a histórico de conversas (armazenado em Redis)
 
-- **RAG (Retrieval-Augmented Generation)**:
-  - Integração com bases de conhecimento
-  - Busca semântica de documentos
-  - Contextualização de respostas
+### 5. Monitoramento e Custos *(planejado)*
+- Acompanhamento de execuções
+- Cálculo simulado de custo por agente
 
-- **Memory Management**:
-  - Memória de curto prazo para agentes
+---
 
 ## 💻 Stack Tecnológica
 
-- **Python 3.10+**
-- **FastAPI**: Framework web assíncrono
-- **LangGraph**: Orquestração de agentes
-- **SQLAlchemy**: ORM
-- **PostgreSQL**: Banco de dados
-- **Redis**: Cache e filas
-- **Docker**: Containerização
-- **CI/CD**: GitHub Actions para integração e deploy automáticos
-- **Vue 3 + Vite**: Framework Front-End para o CRUD dos prompts.
-- **Nginx**: Para apoio no Front-end.
+- **Backend**: Python 3.10+, FastAPI, SQLAlchemy, LangGraph, LangChain  
+- **Banco**: PostgreSQL 15  
+- **Cache**: Redis 7  
+- **Vector DB**: ChromaDB  
+- **LLM**: Ollama (modelos locais)  
+- **Frontend**: Vue 3 + Vite  
+- **Infra**: Docker, Docker Compose, GitHub Actions (CI/CD)  
+
+---
 
 ## 🔧 Configuração e Instalação
 
 ### Pré-requisitos
-- Python 3.10+
 - Docker e Docker Compose
+- Python 3.10+ (para rodar local se quiser)
 - PostgreSQL 15+
 - Redis 7+
 
 ### Setup Local
-
-1. **Clone o repositório**
 ```bash
 git clone https://github.com/RonaldoAmaralDev/desafio-agent.git
 cd desafio-agent
-```
-
-2. **Configure as variáveis de ambiente**
-```bash
 cp .env.example .env
-# Edite o arquivo .env com suas configurações
-```
-
-3. **Inicie com Docker Compose**
-```bash
+# edite variáveis do .env se necessário
 docker compose up --build
 ```
 
-4. **Acesse a API**
-- API Docs: http://localhost:8000/docs
-- Health Check: http://localhost:8000/health
+### Acesso
+- API: http://localhost:8000/docs  
+- Health Check: http://localhost:8000/health  
+- Frontend: http://localhost:5173  
 
-5. **Acesse a interface de Prompt Engineering**
-- Frontend: http://localhost:5173
+---
 
 ## 📊 Exemplos de Uso
 
-### Criando um Agente
-```python
+### Criar Agente
+```http
 POST /api/v1/agents
 {
   "name": "Research Assistant",
-  "model": "gpt-4o",
-  "temperature": 0.7,
-  "prompt_id": "uuid-do-prompt"
+  "model": "llama3",
+  "temperature": 0.7
 }
 ```
 
-### Executando um Workflow
-```python
-POST /api/v1/executions
+### Executar Agente
+```http
+POST /api/v1/agents/{agent_id}/run
 {
-  "agent_id": "agent-1",
-  "input": "Analise as tendências de mercado em IA"
+  "input": "Explique a importância da Revolução Industrial"
 }
 ```
+
+### Upload de Documento
+```http
+POST /api/v1/rag/upload
+(file=@documento.pdf)
+```
+
+### Perguntar com RAG
+```http
+POST /api/v1/rag/query
+{
+  "question": "O que este documento fala sobre IA?"
+}
+```
+
+---
 
 ## 🧪 Testes
-
 ```bash
 pytest tests/ --cov=src
 ```
 
+---
+
 ## 📈 Diferenciais Implementados
+- Multi-Agent Collaboration (em evolução)
+- Prompt Engineering Interface (frontend Vue)
+- RAG integrado (Chroma + Ollama)
+- Logging em todas as rotas
+- Middleware para tratamento de erros
+- CI/CD configurado (GitHub Actions)
+- Volume persistente para embeddings (Chroma) e modelos (Ollama)
 
-1. **Multi-Agent Collaboration**: Agentes podem colaborar entre si para resolver tarefas complexas
-2. **Prompt Engineering Interface**: Interface visual para criação e teste de prompts
-3. **Real-time Monitoring**: Acompanhamento em tempo real das execuções
-4. **Cost Tracking**: Monitoramento de custos por execução/agente
-5. **Export/Import**: Sistema de export/import de configurações de agentes
-6. **Logging em todas as rotas**: Monitoramento detalhado das requisições
-7. **Middleware**: Tratamento centralizado de erros e métricas
-8. **CI/CD**: Integração e deploy automatizados
+---
 
+## 🗺️ Roadmap Futuro
 
+1. **Memory Management Completo**: manter histórico de conversas em Redis por sessão/usuário.  
+2. **Real-time Monitoring**: dashboard de execuções em tempo real.  
+3. **Cost Tracking real**: cálculo de custo baseado em tokens gerados.  
+4. **Interface Frontend Avançada**: incluir visualização de execuções e upload de documentos direto na interface.  
+5. **Suporte a múltiplos providers**: além de Ollama, permitir OpenAI/Azure.  
+
+---
 
 ## 📝 Notas sobre o Desafio
-
 Este projeto foi desenvolvido como resposta ao desafio técnico, demonstrando:
-
-1. **Competência Backend**: API robusta e bem estruturada com FastAPI
-2. **Conhecimento em IA**: Uso prático de LangGraph e técnicas de RAG
-3. **Arquitetura Escalável**: Design pensado para crescimento e manutenibilidade
-4. **Boas Práticas**: Clean code, testes, documentação e containerização
-5. **Visão de Produto**: Features que agregam valor real ao usuário final
+- **Competência Backend** com FastAPI e SQLAlchemy  
+- **Conhecimento em IA** com LangGraph + RAG  
+- **Boas Práticas**: testes, logging, documentação, Docker  
+- **Visão de Produto**: integra backend, frontend e LLMs em um sistema único  
