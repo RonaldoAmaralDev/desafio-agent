@@ -5,7 +5,7 @@ from src.app.models.execution_cost import ExecutionCost
 from src.app.schemas.execution_cost import ExecutionCostSchema, AgentCostResponse
 from src.app.core.logging import get_logger
 
-router = APIRouter(prefix="/costs", tags=["Costs"])
+router = APIRouter(prefix="/costs", tags=["costs"])
 logger = get_logger(__name__)
 
 @router.get("/agent/{agent_id}", response_model=AgentCostResponse)
