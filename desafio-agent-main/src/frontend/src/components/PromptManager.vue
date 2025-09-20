@@ -52,7 +52,7 @@
         </div>
         <div v-if="testResults[prompt.id]" class="test-result">
           <strong>Resultado:</strong>
-          <pre>{{ testResults[prompt.id] }}</pre>
+          <pre style="white-space: pre-wrap;">{{ testResults[prompt.id] }}</pre>
         </div>
       </div>
     </div>
@@ -62,7 +62,8 @@
       <ul>
         <li v-for="(m, idx) in memory" :key="idx">
           <strong>Você:</strong> {{ m.input }} <br />
-          <strong>Agente:</strong> {{ m.output }}
+          <strong>Resposta:</strong> {{ m.output }} <br />
+          <small v-if="m.agent_name">[{{ m.agent_name }} / {{ m.provider }}]</small>
         </li>
       </ul>
     </div>
@@ -96,6 +97,7 @@ const answer = ref<string>("");
 const memory = ref<any[]>([]);
 const costSummary = ref({ total_cost: 0, average_cost: 0, executions: 0 });
 const loading = ref(false);
+const agentInfo = ref<{ name: string; provider: string } | null>(null);
 
 const newPrompt = ref({
   name: "",
@@ -187,7 +189,15 @@ async function testPrompt(promptId: string) {
 
     if (!res.ok || !res.body) {
       const errorData = await res.json().catch(() => ({}))
-      throw new Error(errorData.detail || "Erro ao executar prompt")
+      if (res.status === 402) {
+        toast.error("💳 Sem créditos: " + (errorData.detail || "Conta OpenAI sem saldo."))
+      } else if (res.status === 401) {
+        toast.error("🔑 Erro de autenticação: " + (errorData.detail || "Chave de API inválida."))
+      } else {
+        toast.error("⚠️ Erro: " + (errorData.detail || "Falha ao executar prompt"))
+      }
+      loading.value = false
+      return
     }
 
     const reader = res.body.getReader()
@@ -207,21 +217,29 @@ async function testPrompt(promptId: string) {
         if (!part.trim()) continue
         const msg = JSON.parse(part)
 
+        if (msg.type === "error") {
+          toast.error(msg.message)
+          loading.value = false
+          return
+        }
+
         if (msg.type === "token") {
           streamedText += msg.content
           testResults.value[promptId] = streamedText
         }
 
         if (msg.type === "end") {
-          testResults.value[promptId] = msg.answer
+          testResults.value[promptId] =
+            `Agente: ${msg.agent_name} (${msg.provider})\n\n${msg.answer}`
           memory.value = msg.memory || []
+          agentInfo.value = { name: msg.agent_name, provider: msg.provider }
           toast.success("Teste concluído com sucesso!")
           await fetchCosts(prompt.agent_id)
         }
       }
     }
   } catch (err: any) {
-    toast.error("Ocorreu o erro: " + err.message)
+    toast.error("❌ Ocorreu o erro: " + err.message)
   } finally {
     loading.value = false
   }

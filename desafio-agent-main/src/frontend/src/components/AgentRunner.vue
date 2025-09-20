@@ -42,7 +42,7 @@
         <li v-for="(m, idx) in memory" :key="idx">
             <strong>Você:</strong> {{ m.input }} <br />
             <strong>Resposta:</strong> {{ m.output  }} <br />
-            <small v-if="agentInfo">[{{ agentInfo.name }} / {{ agentInfo.provider }}]</small>
+            <small v-if="m.agent_name">[{{ m.agent_name }} / {{ m.provider }}]</small>
         </li>
       </ul>
     </div>
@@ -95,6 +95,7 @@ async function askAgent() {
   loading.value = true
   answer.value = ""
   memory.value = []
+  agentInfo.value = null
 
   try {
     const res = await fetch(`${apiAgents}/${selectedAgentId.value}/run/stream`, {
@@ -105,7 +106,14 @@ async function askAgent() {
 
     if (!res.ok || !res.body) {
       const errorData = await res.json().catch(() => ({}))
-      throw new Error(errorData.detail || "Erro ao executar agente")
+      if (res.status === 402) {
+        toast.error("💳 Sem créditos: " + (errorData.detail || "A conta OpenAI não possui mais saldo."))
+      } else if (res.status === 401) {
+        toast.error("🔑 Erro de autenticação: " + (errorData.detail || "Chave de API inválida ou ausente."))
+      } else {
+        toast.error("⚠️ Erro: " + (errorData.detail || "Falha ao executar agente"))
+      }
+      return
     }
 
     const reader = res.body.getReader()
@@ -123,20 +131,28 @@ async function askAgent() {
       for (const part of parts) {
         if (!part.trim()) continue
         const msg = JSON.parse(part)
+
+        if (msg.type === "error") {
+          toast.error(msg.message)
+          loading.value = false
+          return
+        }
+
         if (msg.type === "token") {
           answer.value += msg.content
         }
+
         if (msg.type === "end") {
           answer.value = msg.answer
           memory.value = msg.memory || []
           agentInfo.value = { name: msg.agent_name, provider: msg.provider }
-          toast.success("Execução concluída!")
+          toast.success("✅ Execução concluída!")
           await fetchCosts(selectedAgentId.value)
         }
       }
     }
   } catch (err: any) {
-    toast.error("Ocorreu o erro: " + err.message)
+    toast.error("❌ Ocorreu o erro: " + err.message)
   } finally {
     loading.value = false
   }

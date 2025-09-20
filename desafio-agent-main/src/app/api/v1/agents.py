@@ -5,6 +5,8 @@ from sqlalchemy import func
 from typing import List
 from pydantic import BaseModel
 import asyncio
+import os
+import json
 
 from app.db.session import get_db
 from app.models.agent import Agent
@@ -14,8 +16,7 @@ from app.schemas.agent import AgentSchema, AgentCreate
 from app.core.logging import get_logger
 from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
-import json
-import os
+from openai import RateLimitError, AuthenticationError
 
 from app.core.memory import save_agent_memory, get_agent_memory, clear_agent_memory
 
@@ -42,18 +43,6 @@ OPENAI_PRICING = {
     "gpt-4o-mini": {"prompt": 0.003, "completion": 0.006},
 }
 
-def calculate_openai_cost(model: str, usage: dict) -> float:
-    """
-    Calcula custo em USD baseado no modelo e uso de tokens.
-    """
-    pricing = OPENAI_PRICING.get(model)
-    if not pricing:
-        return 0.0
-
-    prompt_cost = (usage.get("prompt_tokens", 0) / 1000) * pricing["prompt"]
-    completion_cost = (usage.get("completion_tokens", 0) / 1000) * pricing["completion"]
-    return round(prompt_cost + completion_cost, 6)
-
 @router.post("/", response_model=AgentSchema)
 def create_agent(agent: AgentCreate, db: Session = Depends(get_db)):
     logger.info(f"Criando agente: {agent.name} (modelo: {agent.model})")
@@ -78,6 +67,20 @@ def list_agents(db: Session = Depends(get_db)):
     logger.info(f"Listando {len(agents)} agentes")
     return agents
 
+def calculate_openai_cost(model: str, usage: dict) -> float:
+    pricing = OPENAI_PRICING.get(model)
+    if not pricing:
+        return 0.0
+    prompt_cost = (usage.get("prompt_tokens", 0) / 1000) * pricing["prompt"]
+    completion_cost = (usage.get("completion_tokens", 0) / 1000) * pricing["completion"]
+    return round(prompt_cost + completion_cost, 6)
+
+# ------------------------
+# REQUEST/RESPONSE MODELS
+# ------------------------
+class RunRequest(BaseModel):
+    input: str
+
 
 @router.post("/{agent_id}/run/stream")
 def run_agent_stream(agent_id: int, payload: RunRequest, db: Session = Depends(get_db)):
@@ -85,12 +88,13 @@ def run_agent_stream(agent_id: int, payload: RunRequest, db: Session = Depends(g
     if not agent:
         raise HTTPException(status_code=404, detail="Agente não encontrado")
 
-    try:
-        def generate():
-            full_answer = ""
+    def generate():
+        full_answer = ""
+        cost = 0.0
+        usage = {}
 
+        try:
             if agent.provider == "ollama":
-                # Streaming nativo do Ollama
                 llm = ChatOllama(
                     model=agent.model,
                     base_url=agent.base_url,
@@ -99,12 +103,8 @@ def run_agent_stream(agent_id: int, payload: RunRequest, db: Session = Depends(g
                 for chunk in llm.stream(payload.input):
                     token = chunk.content or ""
                     full_answer += token
-                    yield json.dumps(
-                        {"type": "token", "content": token},
-                        ensure_ascii=False
-                    ) + "\n"
+                    yield json.dumps({"type": "token", "content": token}, ensure_ascii=False) + "\n"
 
-                # custo simbólico
                 cost = len(full_answer) * 0.001
 
             elif agent.provider == "openai":
@@ -113,25 +113,24 @@ def run_agent_stream(agent_id: int, payload: RunRequest, db: Session = Depends(g
                     api_key=os.getenv("OPENAI_API_KEY"),
                     temperature=agent.temperature or 0
                 )
-                response = llm.invoke(payload.input)
-                text = response.content if hasattr(response, "content") else str(response)
+                for chunk in llm.stream(payload.input):
+                    token = chunk.content or ""
+                    full_answer += token
+                    yield json.dumps({"type": "token", "content": token}, ensure_ascii=False) + "\n"
 
-                for token in text.split(" "):
-                    full_answer += token + " "
-                    yield json.dumps(
-                        {"type": "token", "content": token + " "},
-                        ensure_ascii=False
-                    ) + "\n"
+                    if hasattr(chunk, "response_metadata"):
+                        usage = chunk.response_metadata.get("token_usage", {}) or usage
 
-                # custo real baseado em tokens
-                usage = response.response_metadata.get("token_usage", {})
                 cost = calculate_openai_cost(agent.model, usage)
 
             else:
-                raise HTTPException(status_code=400, detail=f"Provider {agent.provider} não suportado")
+                yield json.dumps(
+                    {"type": "error", "message": f"Provider {agent.provider} não suportado"},
+                    ensure_ascii=False
+                ) + "\n"
+                return
 
-            # -------------------------
-            # registrar execução e custo
+            # Registrar execução
             execution = Execution(agent_id=agent.id, input=payload.input, output=full_answer)
             db.add(execution)
             db.commit()
@@ -141,7 +140,6 @@ def run_agent_stream(agent_id: int, payload: RunRequest, db: Session = Depends(g
             save_agent_memory(agent.id, payload.input, full_answer)
             history = get_agent_memory(agent.id)
 
-            # enviar evento final
             yield json.dumps(
                 {
                     "type": "end",
@@ -155,49 +153,30 @@ def run_agent_stream(agent_id: int, payload: RunRequest, db: Session = Depends(g
                 ensure_ascii=False
             ) + "\n"
 
-        return StreamingResponse(generate(), media_type="application/x-ndjson")
+        except RateLimitError:
+            yield json.dumps(
+                {"type": "error", "message": "💳 Sem créditos: a conta OpenAI configurada não possui saldo."},
+                ensure_ascii=False
+            ) + "\n"
+        except AuthenticationError:
+            yield json.dumps(
+                {"type": "error", "message": "🔑 A chave de API da OpenAI é inválida ou não foi configurada corretamente."},
+                ensure_ascii=False
+            ) + "\n"
+        except Exception as e:
+            logger.error(f"Erro no streaming: {e}")
+            yield json.dumps(
+                {"type": "error", "message": f"Erro inesperado no streaming: {str(e)}"},
+                ensure_ascii=False
+            ) + "\n"
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro no streaming: {e}")
-
-
-@router.delete("/{agent_id}/memory")
-def clear_memory(agent_id: str):
-    """
-    Limpa memória de curto prazo de um agente.
-    """
-    clear_agent_memory(agent_id)
-    logger.info(f"Memória do agente {agent_id} limpa com sucesso")
-    return {"status": "ok", "message": f"Memória do agente {agent_id} foi limpa"}
-
-
-@router.post("/collaborate")
-async def collaborate(request: CollaborationRequest, db: Session = Depends(get_db)):
-    agents = db.query(Agent).filter(Agent.id.in_(request.agent_ids)).all()
-    logger.info(f"Listando {len(agents)} agentes para colaboração")
-    if not agents:
-        logger.warning(f"Nenhum agente encontrado para IDs {request.agent_ids}")
-        raise HTTPException(status_code=404, detail="Agents not found")
-
-    async def run_agent_task(agent: Agent):
-        logger.info(f"Executando task '{request.task}' para agente {agent.id} ({agent.name})")
-        output = await agent.run_task_async(request.task)
-        logger.info(f"Task concluída para agente {agent.id}: output='{output}'")
-        return {"agent_id": agent.id, "agent_name": agent.name, "output": output}
-
-    results = await asyncio.gather(*(run_agent_task(agent) for agent in agents))
-    final_output = " | ".join([r["output"] for r in results])
-    logger.info(f"Task '{request.task}' finalizada. Resultado final: {final_output}")
-
-    return {"task": request.task, "results": results, "final_output": final_output}
+    return StreamingResponse(generate(), media_type="application/x-ndjson")
 
 
 # ------------------------
 # COST TRACKING
 # ------------------------
-
 def register_execution_cost(db: Session, execution_id: int, agent_id: int, cost: float):
-    logger.info(f"Registrando custo de execução: execution_id={execution_id}, agent_id={agent_id}, cost={cost}")
     execution_cost = ExecutionCost(
         execution_id=execution_id,
         agent_id=agent_id,
