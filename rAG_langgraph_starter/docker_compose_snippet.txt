@@ -1,0 +1,11 @@
+# Add these services to your docker-compose.yml
+services:
+  chroma:
+    image: ghcr.io/chroma-core/chroma:latest
+    ports:
+      - "8000:8000"
+    environment:
+      - CHROMA_SERVER=true
+      - CHROMA_DB_IMPL=duckdb+parquet
+    volumes:
+      - ./chroma_db:/chroma_db

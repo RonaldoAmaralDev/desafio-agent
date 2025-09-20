@@ -1,0 +1,31 @@
+# langgraph_flow.yaml - example LangGraph flow that orchestrates RAG
+# This is a conceptual example. Adjust to your LangGraph version and runtime.
+name: rag_assistant
+nodes:
+  - id: receive_query
+    type: input
+    params:
+      name: query
+  - id: semantic_retriever
+    type: tool
+    params:
+      module: services.rag
+      function: query_rag
+      args:
+        - "{{inputs.query}}"
+        - 4
+  - id: format_response
+    type: code
+    params:
+      code: |
+        def run(retrieved_text):
+            # post-process or score results here
+            return {'answer': retrieved_text}
+  - id: output
+    type: output
+    params:
+      value: "{{nodes.format_response.outputs.answer}}"
+edges:
+  - [receive_query, semantic_retriever]
+  - [semantic_retriever, format_response]
+  - [format_response, output]

@@ -1,0 +1,66 @@
+version: "3.9"
+
+services:
+  # Backend Node.js principal
+  api:
+    build: .
+    container_name: agent-api
+    command: sh -c "while ! pg_isready -h db -U ${DATABASE_USER}; do echo 'Esperando o Postgres...'; sleep 2; done; npm run dev"
+    working_dir: /usr/src/app
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+    ports:
+      - "${APP_PORT}:3000"
+    environment:
+      - DATABASE_HOST=db
+      - DATABASE_USER=${DATABASE_USER}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD}
+      - DATABASE_NAME=${DATABASE_NAME}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      - db
+      - rag-api
+
+  # Banco Postgres usado pelo app
+  db:
+    image: postgres:15
+    container_name: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${DATABASE_USER}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      POSTGRES_DB: ${DATABASE_NAME}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  # Chroma Vector DB
+  chroma:
+    image: ghcr.io/chroma-core/chroma:latest
+    container_name: chroma
+    ports:
+      - "8000:8000"
+    environment:
+      - CHROMA_SERVER=true
+      - CHROMA_DB_IMPL=duckdb+parquet
+    volumes:
+      - ./chroma_db:/chroma_db
+
+  # FastAPI RAG microservice
+  rag-api:
+    build: ./rAG_langgraph_starter/fastapi_app
+    container_name: rag-api
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - ./rAG_langgraph_starter/services:/app/services
+      - ./chroma_db:/chroma_db
+    ports:
+      - "8001:8001"
+    depends_on:
+      - chroma
+
+volumes:
+  pgdata:

@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual env
+.env
+.envrc
+.venv/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Build / dist
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+wheels/
+share/python-wheels/
+
+# Logs
+*.log
+logs/
+
+# Tests / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+nosetests.xml
+coverage.xml
+
+# DB / Docker volumes
+db_data/
+redis_data/
+
+# Alembic
+alembic/versions/*.pyc
+
+# Editors / IDE
+.vscode/
+.idea/
+*.iml
+
+# Cache / tmp
+.cache/
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+.pytype/
+
+# Others
+*.pyo
+*.pot
+*.mo

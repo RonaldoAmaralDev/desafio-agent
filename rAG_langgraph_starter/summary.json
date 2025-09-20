@@ -1,0 +1,14 @@
+{
+  "work_dir_top_level": [
+    "desafio-agent-main"
+  ],
+  "detected_backend": "node",
+  "extra_files_created": [
+    "scripts/ingest_documents.py",
+    "services/rag.py",
+    "langgraph_flow.yaml",
+    "docker_compose_snippet.txt",
+    "README_RAG_ADDITIONS.md"
+  ],
+  "extra_dir": "/mnt/data/desafio-agent/rAG_langgraph_starter"
+}
