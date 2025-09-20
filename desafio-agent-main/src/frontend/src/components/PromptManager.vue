@@ -154,7 +154,7 @@ async function createPrompt() {
     newPrompt.value = { name: "", description: "", content: "", version: "1.0" };
     selectedAgentId.value = null;
 
-    toast.sucess("Prompt criado com sucesso!");
+    toast.success("Prompt criado com sucesso!");
   } catch (err: any) {
     toast.error("Ocorreu o erro: " + err.message)
   }
@@ -192,7 +192,7 @@ async function testPrompt(promptId: string) {
     testResults.value[promptId] = data.answer;
     memory.value = data.memory || [];
 
-    toast.sucess("Teste realizado com sucesso!");
+    toast.success("Teste realizado com sucesso!");
 
     await fetchCosts(prompt.agent_id);
   } catch (err: any) {

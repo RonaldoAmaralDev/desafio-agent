@@ -2,7 +2,7 @@ import json
 from typing import List, Dict
 from app.core.redis import redis_client
 
-MEMORY_LIMIT = 10  # últimas 10 interações
+MEMORY_LIMIT = 5  # últimas 5 interações
 
 def save_agent_memory(agent_id: int, user_input: str, agent_output: str):
     """
