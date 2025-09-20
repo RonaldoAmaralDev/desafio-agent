@@ -14,13 +14,14 @@ class AgentExportSchema(BaseModel):
     model: str
     temperature: float
     owner_id: int
-    prompt_id: Optional[str]
     prompts: List[PromptExportSchema] = []
+
+    class Config:
+        orm_mode = True
 
 class AgentImportSchema(BaseModel):
     name: str
     model: str
     temperature: float
     owner_id: int
-    prompt_id: Optional[str]
     prompts: List[PromptExportSchema] = []

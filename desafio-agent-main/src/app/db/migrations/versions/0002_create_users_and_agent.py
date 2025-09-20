@@ -5,7 +5,7 @@ from datetime import datetime
 import bcrypt
 
 # Revisões
-revision = "993810b27a82"
+revision = "0002_create_users_and_agent"
 down_revision = "0001_initial"
 branch_labels = None
 depends_on = None
@@ -32,7 +32,7 @@ def upgrade() -> None:
         select(users.c.id).where(users.c.email == "admin@example.com")
     ).first()
 
-    if admin_row is not None:  # já existe
+    if admin_row is not None:
         admin_id = admin_row[0]
     else:
         result = conn.execute(
@@ -61,7 +61,7 @@ def upgrade() -> None:
         ).limit(1)
     ).first()
 
-    if exists is None:  # não existe ainda
+    if exists is None:
         conn.execute(
             insert(agents).values(
                 name="Ollama Local",
@@ -71,7 +71,7 @@ def upgrade() -> None:
                 base_url="http://ollama:11434",
                 temperature=0.0,
                 active=True,
-                owner_id=admin_id,  # 🔗 vincula ao admin
+                owner_id=admin_id,
                 created_at=now,
                 updated_at=now
             )

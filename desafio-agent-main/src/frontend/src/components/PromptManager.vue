@@ -55,7 +55,8 @@
           <button @click="testPrompt(prompt.id)" class="btn-test">Testar</button>
         </div>
         <div v-if="testResults[prompt.id]" class="test-result">
-          <strong>Resultado:</strong> {{ testResults[prompt.id] }}
+          <strong>Resultado:</strong>
+          <pre>{{ testResults[prompt.id] }}</pre>
         </div>
       </div>
     </div>
@@ -137,18 +138,31 @@ async function createPrompt() {
 
 // Testar prompt
 async function testPrompt(promptId) {
-  if (!selectedAgentId.value) return;
+  const prompt = prompts.value.find(p => p.id === promptId);
+  if (!prompt) {
+    toast.value = { message: "Prompt não encontrado.", type: "error" };
+    return;
+  }
+
+  if (!prompt.agent_id) {
+    toast.value = { message: "Este prompt não está vinculado a um agente.", type: "warning" };
+    return;
+  }
 
   try {
-    const res = await fetch(`${apiBase}/test/${selectedAgentId.value}/${promptId}`, { method: "POST" });
+    const res = await fetch(`${apiAgents}/${prompt.agent_id}/run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ input: prompt.content })
+    });
 
     if (!res.ok) {
       const errorData = await res.json();
-      throw new Error(errorData.detail || "Erro ao testar prompt");
+      throw new Error(errorData.detail || "Erro ao executar prompt");
     }
 
     const data = await res.json();
-    testResults.value[promptId] = data.output;
+    testResults.value[promptId] = data.answer;
 
     toast.value = { message: "Teste realizado com sucesso!", type: "success" };
   } catch (err) {
@@ -285,5 +299,12 @@ button {
   background: #e3f2fd;
   border-left: 4px solid #2196f3;
   border-radius: 6px;
+}
+
+.test-result pre {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family: inherit;
+  margin: 0;
 }
 </style>

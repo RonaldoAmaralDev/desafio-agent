@@ -99,6 +99,11 @@ Resposta (exemplo):
 
 ---
 
+## Caso tenha interesse de limpar o banco de dados
+```bash
+chmod +x scripts/reset-db.sh
+./scripts/reset-db.sh
+```
 ## 👨‍💻 Autor
 
 Desenvolvido por **Ronaldo Amaral**  

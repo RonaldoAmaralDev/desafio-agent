@@ -39,7 +39,6 @@ def create_agent(agent: AgentCreate, db: Session = Depends(get_db)):
         model=agent.model,
         temperature=agent.temperature,
         owner_id=agent.owner_id,
-        prompt_id=agent.prompt_id,
         provider=agent.provider or "ollama",
         base_url=agent.base_url or "http://ollama:11434"
     )

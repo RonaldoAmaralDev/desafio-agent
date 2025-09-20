@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.models.prompt import Prompt
 from app.db.session import get_db
-from app.schemas.prompt import PromptSchema
+from app.schemas.prompt import PromptSchema, PromptCreate
 from typing import List
 from app.models.agent import Agent
 from app.core.logging import get_logger
@@ -11,13 +11,14 @@ router = APIRouter(prefix="/prompts", tags=["prompts"])
 logger = get_logger(__name__)
 
 @router.post("/", response_model=PromptSchema)
-def create_prompt(prompt: PromptSchema, db: Session = Depends(get_db), user_id: int | None = None):
-    logger.info(f"Criando prompt '{prompt.name}'")
+def create_prompt(prompt: PromptCreate, db: Session = Depends(get_db), user_id: int | None = None):
+    logger.info(f"Criando prompt '{prompt.name}' vinculado ao agente {prompt.agent_id}")
     db_prompt = Prompt(
         name=prompt.name,
         description=prompt.description,
         content=prompt.content,
         version=prompt.version,
+        agent_id=prompt.agent_id
     )
     db.add(db_prompt)
     db.commit()

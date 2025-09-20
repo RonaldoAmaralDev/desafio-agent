@@ -16,8 +16,6 @@ class Agent(Base):
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     owner = relationship("User", back_populates="agents")
 
-    prompt_id = Column(Integer, ForeignKey("prompts.id"), nullable=True)
-
     model = Column(String(100), nullable=False, default="gpt-3.5")
     temperature = Column(Float, default=0.7)
 
@@ -27,6 +25,8 @@ class Agent(Base):
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=True, onupdate=datetime.utcnow)
+
+    prompts = relationship("Prompt", back_populates="agent")
 
     async def run_task_async(self, task: str) -> str:
         """

@@ -25,19 +25,6 @@ def upgrade():
         sa.Column('created_at', postgresql.TIMESTAMP(), nullable=True)
     )
 
-    # Tabela de prompts (vem antes de agents para evitar erro de FK)
-    op.create_table(
-        'prompts',
-        sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column('user_id', sa.Integer(), sa.ForeignKey('users.id'), nullable=True),
-        sa.Column('name', sa.String(255), nullable=False),
-        sa.Column('description', sa.Text(), nullable=True),
-        sa.Column('content', sa.Text(), nullable=False),
-        sa.Column('version', sa.String(50), server_default="1.0"),
-        sa.Column('created_at', postgresql.TIMESTAMP(timezone=True), server_default=sa.text('now()')),
-        sa.Column('updated_at', postgresql.TIMESTAMP(timezone=True), nullable=True)
-    )
-
     # Tabela de agentes
     op.create_table(
         'agents',
@@ -47,12 +34,25 @@ def upgrade():
         sa.Column('owner_id', sa.Integer(), sa.ForeignKey('users.id'), nullable=False),
         sa.Column('model', sa.String(100), nullable=True),
         sa.Column('temperature', sa.Float(), server_default="0.0"),
-        sa.Column('prompt_id', sa.Integer(), sa.ForeignKey('prompts.id'), nullable=True),
         sa.Column('provider', sa.String(100), nullable=True),
         sa.Column('base_url', sa.String(255), nullable=True),
         sa.Column('active', sa.Boolean(), nullable=False, server_default=sa.text("true")),
         sa.Column('created_at', postgresql.TIMESTAMP(), nullable=True),
         sa.Column('updated_at', postgresql.TIMESTAMP(timezone=True), nullable=True),
+    )
+
+    # Tabela de prompts (aponta para agents)
+    op.create_table(
+        'prompts',
+        sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
+        sa.Column('user_id', sa.Integer(), sa.ForeignKey('users.id'), nullable=True),
+        sa.Column('agent_id', sa.Integer(), sa.ForeignKey('agents.id'), nullable=True),
+        sa.Column('name', sa.String(255), nullable=False),
+        sa.Column('description', sa.Text(), nullable=True),
+        sa.Column('content', sa.Text(), nullable=False),
+        sa.Column('version', sa.String(50), server_default="1.0"),
+        sa.Column('created_at', postgresql.TIMESTAMP(timezone=True), server_default=sa.text('now()')),
+        sa.Column('updated_at', postgresql.TIMESTAMP(timezone=True), nullable=True)
     )
 
     # Tabela de execuções
@@ -91,6 +91,6 @@ def downgrade():
     op.drop_table('workflows')
     op.drop_table('execution_costs')
     op.drop_table('executions')
-    op.drop_table('agents')
     op.drop_table('prompts')
+    op.drop_table('agents')
     op.drop_table('users')

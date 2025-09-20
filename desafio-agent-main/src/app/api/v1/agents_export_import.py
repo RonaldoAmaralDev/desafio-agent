@@ -9,6 +9,7 @@ import json
 
 router = APIRouter(prefix="/agents", tags=["Agents Export/Import"])
 logger = get_logger(__name__)
+
 # -----------------------------
 # Export endpoint
 # -----------------------------
@@ -30,7 +31,6 @@ def export_agent(agent_id: int, db: Session = Depends(get_db)):
         "model": agent.model,
         "temperature": agent.temperature,
         "owner_id": agent.owner_id,
-        "prompt_id": agent.prompt_id,
         "prompts": prompts
     }
 
@@ -50,8 +50,7 @@ def import_agent(file: UploadFile = File(...), db: Session = Depends(get_db)):
         name=data["name"],
         model=data["model"],
         temperature=data["temperature"],
-        owner_id=data["owner_id"],
-        prompt_id=data.get("prompt_id")
+        owner_id=data["owner_id"]
     )
     db.add(agent)
     db.commit()

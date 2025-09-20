@@ -34,11 +34,11 @@ watch(
 <style scoped>
 .toast {
   position: fixed;
-  top: 20px;
+  top: 80px;
   right: 20px;
   padding: 12px 20px;
   border-radius: 6px;
-  color: white;
+  color: black;
   font-weight: 500;
   box-shadow: 0 2px 6px rgba(0,0,0,0.2);
   z-index: 1000;
