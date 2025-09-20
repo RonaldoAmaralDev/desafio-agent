@@ -11,7 +11,9 @@ from app.schemas.agent import AgentSchema, AgentCreate
 from app.core.logging import get_logger
 from langchain_ollama import ChatOllama
 
-router = APIRouter(tags=["agents"])
+from app.core.memory import save_agent_memory, get_agent_memory, clear_agent_memory
+
+router = APIRouter(prefix="/agents", tags=["agents"])
 logger = get_logger(__name__)
 
 class CollaborationRequest(BaseModel):
@@ -25,11 +27,7 @@ class RunRequest(BaseModel):
 
 class RunResponse(BaseModel):
     answer: str
-
-
-# ------------------------
-# ENDPOINTS
-# ------------------------
+    memory: list[dict] = [] 
 
 @router.post("/", response_model=AgentSchema)
 def create_agent(agent: AgentCreate, db: Session = Depends(get_db)):
@@ -48,15 +46,18 @@ def create_agent(agent: AgentCreate, db: Session = Depends(get_db)):
     logger.info(f"Agente criado com sucesso: ID {db_agent.id}")
     return db_agent
 
+
 @router.get("/", response_model=List[AgentSchema])
 def list_agents(db: Session = Depends(get_db)):
-    return db.query(Agent).all()
+    agents = db.query(Agent).all()
+    logger.info(f"Listando {len(agents)} agentes")
+    return agents
 
 
 @router.post("/{agent_id}/run", response_model=RunResponse)
 def run_agent(agent_id: str, payload: RunRequest, db: Session = Depends(get_db)):
     """
-    Executa um agente Ollama pelo ID.
+    Executa um agente Ollama pelo ID com memória de curto prazo.
     """
     agent = db.query(Agent).filter(Agent.id == agent_id).first()
     if not agent:
@@ -66,21 +67,47 @@ def run_agent(agent_id: str, payload: RunRequest, db: Session = Depends(get_db))
         raise HTTPException(status_code=400, detail="Somente agentes Ollama suportados nesta versão")
 
     try:
+        memory = get_agent_memory(agent.id)
+        context = "\n".join([f"Você: {m['input']}\nAgente: {m['output']}" for m in memory])
+
+        final_input = f"""
+        Contexto das últimas interações:
+        {context}
+
+        Nova pergunta:
+        {payload.input}
+        """
+
         llm = ChatOllama(
             model=agent.model,
             base_url=agent.base_url,
             temperature=agent.temperature or 0
         )
 
-        res = llm.invoke(payload.input)
+        res = llm.invoke(final_input)
         answer = res.content if hasattr(res, "content") else str(res)
 
-        logger.info(f"Agente {agent.id} executado com sucesso")
-        return {"answer": answer}
+        save_agent_memory(agent.id, payload.input, answer)
+
+        logger.info(f"Agente {agent.id} executado com sucesso com memória")
+        return {
+            "answer": answer,
+            "memory": get_agent_memory(agent.id)
+        }
 
     except Exception as e:
         logger.error(f"Erro ao executar agente {agent.id}: {e}")
         raise HTTPException(status_code=500, detail=f"Erro ao executar agente: {e}")
+
+
+@router.delete("/{agent_id}/memory")
+def clear_memory(agent_id: str):
+    """
+    Limpa memória de curto prazo de um agente.
+    """
+    clear_agent_memory(agent_id)
+    logger.info(f"Memória do agente {agent_id} limpa com sucesso")
+    return {"status": "ok", "message": f"Memória do agente {agent_id} foi limpa"}
 
 
 @router.post("/collaborate")
@@ -103,6 +130,10 @@ async def collaborate(request: CollaborationRequest, db: Session = Depends(get_d
 
     return {"task": request.task, "results": results, "final_output": final_output}
 
+
+# ------------------------
+# COST TRACKING
+# ------------------------
 
 def register_execution_cost(db: Session, execution_id: int, agent_id: int, cost: float):
     logger.info(f"Registrando custo de execução: execution_id={execution_id}, agent_id={agent_id}, cost={cost}")

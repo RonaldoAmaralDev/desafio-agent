@@ -12,7 +12,7 @@ sqlalchemy
 alembic
 
 # Cache/Queue
-redis
+redis>=5.0.0
 
 # Pydantic (com validações extra)
 pydantic[email]

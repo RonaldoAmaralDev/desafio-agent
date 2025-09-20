@@ -52,7 +52,7 @@
           <span class="description">{{ prompt.description }}</span>
         </div>
         <div class="prompt-actions">
-          <button @click="testPrompt(prompt.id)" class="btn-test">Testar</button>
+          <button @click="testPrompt(prompt.id)" class="btn-test" :disabled="loading">Testar</button>
         </div>
         <div v-if="testResults[prompt.id]" class="test-result">
           <strong>Resultado:</strong>
@@ -61,11 +61,26 @@
       </div>
     </div>
 
+    <div v-if="memory.length > 0" class="memory-box">
+      <h3>Memória usada:</h3>
+      <ul>
+        <li v-for="(m, idx) in memory" :key="idx">
+          <strong>Você:</strong> {{ m.input }} <br />
+          <strong>Agente:</strong> {{ m.output }}
+        </li>
+      </ul>
+    </div>
+
+    <div v-if="loading" class="loading">
+      <div class="spinner"></div>
+      <span>Aguarde, processando...</span>
+    </div>
+
     <Toast v-if="toast.message" :message="toast.message" :type="toast.type" />
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted } from "vue";
 import Toast from "./Toast.vue";
 
@@ -77,6 +92,10 @@ const agents = ref([]);
 const testResults = ref({});
 const toast = ref({ message: "", type: "info" });
 
+const answer = ref<string>("");
+const memory = ref<any[]>([]);
+const loading = ref(false);
+
 const newPrompt = ref({
   name: "",
   description: "",
@@ -86,7 +105,6 @@ const newPrompt = ref({
 
 const selectedAgentId = ref(null);
 
-// Buscar prompts existentes
 async function fetchPrompts() {
   try {
     const res = await fetch(apiBase);
@@ -96,7 +114,6 @@ async function fetchPrompts() {
   }
 }
 
-// Buscar agentes
 async function fetchAgents() {
   try {
     const res = await fetch(apiAgents);
@@ -106,7 +123,6 @@ async function fetchAgents() {
   }
 }
 
-// Criar novo prompt
 async function createPrompt() {
   if (!selectedAgentId.value) {
     toast.value = { message: "Selecione um agente antes de criar o prompt", type: "warning" };
@@ -136,8 +152,11 @@ async function createPrompt() {
   }
 }
 
-// Testar prompt
 async function testPrompt(promptId) {
+  loading.value = true;
+  answer.value = "";
+  memory.value = [];
+
   const prompt = prompts.value.find(p => p.id === promptId);
   if (!prompt) {
     toast.value = { message: "Prompt não encontrado.", type: "error" };
@@ -163,14 +182,16 @@ async function testPrompt(promptId) {
 
     const data = await res.json();
     testResults.value[promptId] = data.answer;
+    memory.value = data.memory || [];
 
     toast.value = { message: "Teste realizado com sucesso!", type: "success" };
   } catch (err) {
     toast.value = { message: err.message, type: "error" };
+  } finally {
+    loading.value = false;
   }
 }
 
-// Executa ao montar o componente
 onMounted(() => {
   fetchPrompts();
   fetchAgents();
@@ -306,5 +327,49 @@ button {
   word-wrap: break-word;
   font-family: inherit;
   margin: 0;
+}
+
+button:disabled {
+  background: #bbb;
+  cursor: not-allowed;
+}
+.loading {
+  margin-top: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #555;
+  font-style: italic;
+}
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 3px solid #ccc;
+  border-top: 3px solid #2196f3;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.response-box, .memory-box {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: #e3f2fd;
+  border-left: 4px solid #2196f3;
+  border-radius: 6px;
+}
+.memory-box ul {
+  list-style: none;
+  padding: 0;
+}
+.memory-box li {
+  margin-bottom: 10px;
+  background: #fff;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #ddd;
 }
 </style>

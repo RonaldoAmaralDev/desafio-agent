@@ -16,19 +16,33 @@
       <input v-model="question" id="question" placeholder="Digite sua pergunta..." />
     </div>
 
-    <button @click="askAgent" :disabled="!selectedAgentId || !question || loading">
-      Perguntar
-    </button>
+    <div class="buttons">
+      <button @click="askAgent" :disabled="!selectedAgentId || !question || loading">
+        {{ loading ? "Perguntando..." : "Perguntar" }}
+      </button>
+      <button @click="clearMemory" :disabled="!selectedAgentId || loading" class="btn-clear">
+        🧹 Limpar Memória
+      </button>
+    </div>
 
     <div v-if="loading" class="loading">
       <div class="spinner"></div>
       <span>Aguarde, processando...</span>
     </div>
 
-    <!-- Resposta -->
     <div v-if="answer" class="response-box">
       <h3>Resposta:</h3>
       <pre>{{ answer }}</pre>
+    </div>
+
+    <div v-if="memory.length > 0" class="memory-box">
+      <h3>Memória usada:</h3>
+      <ul>
+        <li v-for="(m, idx) in memory" :key="idx">
+          <strong>Você:</strong> {{ m.input }} <br />
+          <strong>Agente:</strong> {{ m.output }}
+        </li>
+      </ul>
     </div>
 
     <Toast v-if="toast.message" :message="toast.message" :type="toast.type" />
@@ -45,6 +59,7 @@ const agents = ref<any[]>([]);
 const selectedAgentId = ref<string>("");
 const question = ref<string>("");
 const answer = ref<string>("");
+const memory = ref<any[]>([]);
 const toast = ref({ message: "", type: "info" });
 const loading = ref(false);
 
@@ -63,6 +78,7 @@ async function fetchAgents() {
 async function askAgent() {
   loading.value = true;
   answer.value = "";
+  memory.value = [];
 
   try {
     const res = await fetch(`${apiAgents}/${selectedAgentId.value}/run`, {
@@ -78,8 +94,33 @@ async function askAgent() {
 
     const data = await res.json();
     answer.value = data.answer;
+    memory.value = data.memory || [];
 
     toast.value = { message: "Execução realizada com sucesso!", type: "success" };
+  } catch (err: any) {
+    toast.value = { message: err.message, type: "error" };
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function clearMemory() {
+  if (!selectedAgentId.value) return;
+
+  loading.value = true;
+  try {
+    const res = await fetch(`${apiAgents}/${selectedAgentId.value}/memory`, {
+      method: "DELETE"
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(errorData.detail || "Erro ao limpar memória");
+    }
+
+    await res.json();
+    memory.value = [];
+    toast.value = { message: "Memória limpa com sucesso!", type: "success" };
   } catch (err: any) {
     toast.value = { message: err.message, type: "error" };
   } finally {
@@ -113,13 +154,17 @@ input, select {
   border: 1px solid #ccc;
   border-radius: 6px;
 }
+.buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
 button {
   padding: 10px 16px;
-  background: #2196f3;
-  color: white;
   border: none;
   border-radius: 6px;
   cursor: pointer;
+  font-weight: 500;
 }
 button:disabled {
   background: #bbb;
@@ -145,12 +190,30 @@ button:disabled {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
-.response-box {
+.response-box, .memory-box {
   margin-top: 1.5rem;
   padding: 1rem;
   background: #e3f2fd;
   border-left: 4px solid #2196f3;
   border-radius: 6px;
+}
+.memory-box ul {
+  list-style: none;
+  padding: 0;
+}
+.memory-box li {
+  margin-bottom: 10px;
+  background: #fff;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #ddd;
+}
+.btn-clear {
+  background-color: #f44336;
+  color: white;
+}
+.btn-clear:hover {
+  background-color: #d32f2f;
 }
 .response-box pre {
   white-space: pre-wrap;

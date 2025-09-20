@@ -21,10 +21,13 @@ services:
       # LLM / RAG
       - OLLAMA_BASE_URL=http://ollama:11434
       - LLM_PROVIDER=ollama
+      # REDIS
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
       - db
       - chroma
       - ollama
+      - redis
     volumes:
       - ./chroma_db:/app/chroma_db
       - ./ollama_data:/root/.ollama
@@ -84,3 +87,9 @@ services:
         ollama pull llama3 &&
         wait
       "
+  redis:
+    image: redis:7
+    container_name: redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped

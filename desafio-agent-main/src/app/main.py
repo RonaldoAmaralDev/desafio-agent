@@ -27,16 +27,17 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    # allow_origins=origins, #Ambiente Prod
     allow_credentials=True,
     allow_methods=["*"],
+    allow_origins=["*"], #Ambiente Dev
     allow_headers=["*"],
 )
 
 # -------- ROTAS --------
 app.include_router(users.router, prefix="/api/v1", tags=["users"])
 app.include_router(prompts.router, prefix="/api/v1", tags=["prompts"])
-app.include_router(agents.router, prefix="/api/v1/agents", tags=["agents"])
+app.include_router(agents.router, prefix="/api/v1")
 app.include_router(executions.router, prefix="/api/v1", tags=["executions"])
 app.include_router(health.router)
 app.include_router(costs.router, prefix="/api/v1", tags=["costs"])
@@ -45,7 +46,6 @@ app.include_router(rag.router, prefix="/api/v1", tags=["rag"])
 
 # Middleware de erros customizado
 app.add_middleware(ErrorHandlerMiddleware)
-
 
 @app.get("/")
 def root():
