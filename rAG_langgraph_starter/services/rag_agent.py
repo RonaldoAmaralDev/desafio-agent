@@ -1,11 +1,30 @@
+import os
 from langgraph.graph import Graph
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain.vectorstores import Chroma
+from langchain_community.vectorstores import Chroma
+
+# Lê do .env (default OpenAI se não definido)
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai").lower()
+
+if LLM_PROVIDER == "ollama":
+    from langchain_ollama import OllamaEmbeddings, ChatOllama
+else:
+    from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+
 
 def rag_agent(chroma_path: str = "/chroma_db"):
-    embeddings = OpenAIEmbeddings()
+    # Embeddings
+    if LLM_PROVIDER == "ollama":
+        embeddings = OllamaEmbeddings(model="nomic-embed-text")
+    else:
+        embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+
     vectordb = Chroma(persist_directory=chroma_path, embedding_function=embeddings)
-    llm = ChatOpenAI(model="gpt-4o-mini")
+
+    # LLM
+    if LLM_PROVIDER == "ollama":
+        llm = ChatOllama(model="llama3", temperature=0)
+    else:
+        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
     graph = Graph()
 

@@ -1,8 +1,9 @@
 fastapi
 uvicorn
 tiktoken
-langchain==0.1.16
-langgraph==0.0.42
+langchain
+langgraph
 chromadb==0.4.24
-langchain-openai==0.0.8
-langchain-community
+langchain-ollama
+langchain-community>=0.2.0
+numpy<2.0

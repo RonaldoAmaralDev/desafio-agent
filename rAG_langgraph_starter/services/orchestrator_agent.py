@@ -1,11 +1,25 @@
+import os
 from langgraph.graph import Graph
-from langchain_openai import ChatOpenAI
 
 from services.echo_agent import echo_agent
 from services.rag_agent import rag_agent
 
+# Lê do .env ou default "openai"
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai").lower()
+
+if LLM_PROVIDER == "ollama":
+    from langchain_ollama import ChatOllama as ChatLLM
+else:
+    from langchain_openai import ChatOpenAI as ChatLLM
+
+
 def orchestrator_agent(use_rag: bool = False):
-    llm = ChatOpenAI(model="gpt-4o-mini")
+    # Instancia LLM de acordo com provider
+    if LLM_PROVIDER == "ollama":
+        llm = ChatLLM(model="llama3", temperature=0)
+    else:
+        llm = ChatLLM(model="gpt-4o-mini", temperature=0)
+
     graph = Graph()
 
     @graph.node

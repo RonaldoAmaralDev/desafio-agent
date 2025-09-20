@@ -1,33 +1,19 @@
-"""RAG service with conversation history"""
+import os
 from langchain_community.vectorstores import Chroma
 from langchain.chains import ConversationalRetrievalChain
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain.memory import ConversationBufferMemory
-
-# 🔹 Memória global (guarda o histórico da conversa)
-memory = ConversationBufferMemory(
-    memory_key="chat_history", 
-    return_messages=True
-)
+from langchain_ollama import ChatOllama, OllamaEmbeddings
 
 def query_rag(query: str, top_k: int = 4, persist_dir: str = './chroma_db') -> str:
-    # Inicializa embeddings (usa OPENAI_API_KEY do env)
-    embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+    ollama_url = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
 
-    # Banco vetorial persistido (Chroma)
+    embeddings = OllamaEmbeddings(model="nomic-embed-text", base_url=ollama_url)
+
     db = Chroma(persist_directory=persist_dir, embedding_function=embeddings)
     retriever = db.as_retriever(search_kwargs={'k': top_k})
 
-    # Modelo LLM via OpenAI
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    llm = ChatOllama(model="llama3", temperature=0, base_url=ollama_url)
 
-    # Cadeia de RAG com memória de histórico
-    chain = ConversationalRetrievalChain.from_llm(
-        llm=llm,
-        retriever=retriever,
-        memory=memory
-    )
+    chain = ConversationalRetrievalChain.from_llm(llm, retriever)
 
-    # Executa query (agora com histórico de conversa)
-    res = chain.invoke({"question": query})
-    return res["answer"] if isinstance(res, dict) else res
+    res = chain.invoke({"question": query, "chat_history": []})
+    return res["answer"]
