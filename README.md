@@ -77,13 +77,15 @@ Envie uma pergunta ao **microserviço FastAPI** que consulta documentos no **Chr
 
 Exemplo de requisição:
 ```bash
-curl -X POST http://localhost:8001/query   -H "Content-Type: application/json"   -d '{"question": "Quais prompts estão cadastrados para o agente X?"}'
+curl --location 'http://localhost:8001/api/assistant/query' \
+--header 'Content-Type: application/json' \
+--data '{"question": "Quem foi Pedro Álvares Cabral?"}''
 ```
 
 Resposta (exemplo):
 ```json
 {
-  "answer": "O agente X possui 3 prompts cadastrados relacionados a análise de contratos."
+  "answer": "Pedro Álvares Cabral foi um navegador e explorador português que viveu no século XV. Ele é famoso por ter descoberto o Brasil..."
 }
 ```
 
