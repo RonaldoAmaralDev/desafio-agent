@@ -31,6 +31,7 @@ services:
     volumes:
       - ./chroma_db:/app/chroma_db
       - ./ollama_data:/root/.ollama
+      - ./desafio-agent-main:/app
 
   frontend:
     build:
