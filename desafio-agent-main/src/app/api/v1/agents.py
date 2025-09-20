@@ -13,7 +13,9 @@ from app.models.execution import Execution
 from app.schemas.agent import AgentSchema, AgentCreate
 from app.core.logging import get_logger
 from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
 import json
+import os
 
 from app.core.memory import save_agent_memory, get_agent_memory, clear_agent_memory
 
@@ -33,6 +35,24 @@ class RunResponse(BaseModel):
     answer: str
     memory: list[dict] = []
     cost: float = 0.0
+
+# Tabela de preços (USD por 1K tokens)
+OPENAI_PRICING = {
+    "gpt-4o": {"prompt": 0.005, "completion": 0.015},
+    "gpt-4o-mini": {"prompt": 0.003, "completion": 0.006},
+}
+
+def calculate_openai_cost(model: str, usage: dict) -> float:
+    """
+    Calcula custo em USD baseado no modelo e uso de tokens.
+    """
+    pricing = OPENAI_PRICING.get(model)
+    if not pricing:
+        return 0.0
+
+    prompt_cost = (usage.get("prompt_tokens", 0) / 1000) * pricing["prompt"]
+    completion_cost = (usage.get("completion_tokens", 0) / 1000) * pricing["completion"]
+    return round(prompt_cost + completion_cost, 6)
 
 @router.post("/", response_model=AgentSchema)
 def create_agent(agent: AgentCreate, db: Session = Depends(get_db)):
@@ -65,21 +85,53 @@ def run_agent_stream(agent_id: int, payload: RunRequest, db: Session = Depends(g
     if not agent:
         raise HTTPException(status_code=404, detail="Agente não encontrado")
 
-    if agent.provider != "ollama":
-        raise HTTPException(status_code=400, detail="Somente agentes Ollama suportados nesta versão")
-
     try:
-        llm = ChatOllama(model=agent.model, base_url=agent.base_url, temperature=agent.temperature or 0)
-
         def generate():
             full_answer = ""
-            for chunk in llm.stream(payload.input):
-                token = chunk.content or ""
-                full_answer += token
-                yield json.dumps({"type": "token", "content": token}, ensure_ascii=False) + "\n"
 
-            cost = len(full_answer) * 0.001
+            if agent.provider == "ollama":
+                # Streaming nativo do Ollama
+                llm = ChatOllama(
+                    model=agent.model,
+                    base_url=agent.base_url,
+                    temperature=agent.temperature or 0
+                )
+                for chunk in llm.stream(payload.input):
+                    token = chunk.content or ""
+                    full_answer += token
+                    yield json.dumps(
+                        {"type": "token", "content": token},
+                        ensure_ascii=False
+                    ) + "\n"
 
+                # custo simbólico
+                cost = len(full_answer) * 0.001
+
+            elif agent.provider == "openai":
+                llm = ChatOpenAI(
+                    model=agent.model,
+                    api_key=os.getenv("OPENAI_API_KEY"),
+                    temperature=agent.temperature or 0
+                )
+                response = llm.invoke(payload.input)
+                text = response.content if hasattr(response, "content") else str(response)
+
+                for token in text.split(" "):
+                    full_answer += token + " "
+                    yield json.dumps(
+                        {"type": "token", "content": token + " "},
+                        ensure_ascii=False
+                    ) + "\n"
+
+                # custo real baseado em tokens
+                usage = response.response_metadata.get("token_usage", {})
+                cost = calculate_openai_cost(agent.model, usage)
+
+            else:
+                raise HTTPException(status_code=400, detail=f"Provider {agent.provider} não suportado")
+
+            # -------------------------
+            # registrar execução e custo
             execution = Execution(agent_id=agent.id, input=payload.input, output=full_answer)
             db.add(execution)
             db.commit()
@@ -87,15 +139,24 @@ def run_agent_stream(agent_id: int, payload: RunRequest, db: Session = Depends(g
 
             register_execution_cost(db, execution.id, agent.id, cost)
             save_agent_memory(agent.id, payload.input, full_answer)
-
             history = get_agent_memory(agent.id)
 
+            # enviar evento final
             yield json.dumps(
-                {"type": "end", "answer": full_answer, "memory": history, "cost": cost},
+                {
+                    "type": "end",
+                    "answer": full_answer,
+                    "memory": history,
+                    "cost": cost,
+                    "agent_name": agent.name,
+                    "provider": agent.provider,
+                    "model": agent.model
+                },
                 ensure_ascii=False
             ) + "\n"
 
         return StreamingResponse(generate(), media_type="application/x-ndjson")
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro no streaming: {e}")
 
@@ -169,19 +230,31 @@ def list_agent_costs(agent_id: int, db: Session = Depends(get_db)):
 @router.get("/{agent_id}/costs/summary")
 def summarize_agent_costs(agent_id: int, db: Session = Depends(get_db)):
     """
-    Retorna o custo total e estatísticas de um agente.
+    Retorna o custo total, estatísticas e breakdown por provider.
     """
-
+    # total geral
     total, avg, count = db.query(
         func.sum(ExecutionCost.cost),
         func.avg(ExecutionCost.cost),
         func.count(ExecutionCost.id)
     ).filter(ExecutionCost.agent_id == agent_id).first()
 
+    # breakdown por provider
+    breakdown = (
+        db.query(Agent.provider, func.sum(ExecutionCost.cost))
+        .join(Agent, Agent.id == ExecutionCost.agent_id)
+        .filter(ExecutionCost.agent_id == agent_id)
+        .group_by(Agent.provider)
+        .all()
+    )
+
+    provider_costs = {provider: cost or 0 for provider, cost in breakdown}
+
     return {
         "total_cost": total or 0,
         "average_cost": avg or 0,
-        "executions": count or 0
+        "executions": count or 0,
+        "by_provider": provider_costs
     }
 
 def summarize_memory(agent_id: str, memory: list[dict], llm: ChatOllama) -> str:

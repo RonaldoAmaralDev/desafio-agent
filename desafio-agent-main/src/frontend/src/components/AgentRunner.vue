@@ -32,6 +32,7 @@
 
     <div v-if="answer" class="response-box">
       <h3>Resposta:</h3>
+      <p v-if="agentInfo"><strong>Agente:</strong> {{ agentInfo.name }} ({{ agentInfo.provider }})</p>
       <pre>{{ answer }}</pre>
     </div>
 
@@ -39,8 +40,9 @@
       <h3>Memória usada:</h3>
       <ul>
         <li v-for="(m, idx) in memory" :key="idx">
-          <strong>Você:</strong> {{ m.input }} <br />
-          <strong>Agente:</strong> {{ m.output }}
+            <strong>Você:</strong> {{ m.input }} <br />
+            <strong>Resposta:</strong> {{ m.output  }} <br />
+            <small v-if="agentInfo">[{{ agentInfo.name }} / {{ agentInfo.provider }}]</small>
         </li>
       </ul>
     </div>
@@ -66,6 +68,7 @@ const question = ref<string>("");
 const answer = ref<string>("");
 const memory = ref<any[]>([]);
 const loading = ref(false);
+const agentInfo = ref<{ name: string; provider: string } | null>(null);
 
 const costSummary = ref({ total_cost: 0, average_cost: 0, executions: 0 });
 
@@ -126,6 +129,7 @@ async function askAgent() {
         if (msg.type === "end") {
           answer.value = msg.answer
           memory.value = msg.memory || []
+          agentInfo.value = { name: msg.agent_name, provider: msg.provider }
           toast.success("Execução concluída!")
           await fetchCosts(selectedAgentId.value)
         }

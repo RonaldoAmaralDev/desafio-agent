@@ -3,6 +3,7 @@ import sqlalchemy as sa
 from sqlalchemy import select, insert, delete, and_
 from datetime import datetime
 import bcrypt
+import os
 
 # Revisões
 revision = "0002_create_users_and_agent"
@@ -48,23 +49,24 @@ def upgrade() -> None:
         admin_id = result.scalar()
 
     # -------------------
-    # Criar agente Ollama
+    # Criar agentes
     # -------------------
     now = datetime.utcnow()
 
-    exists = conn.execute(
+    # Agente Ollama
+    exists_ollama = conn.execute(
         select(sa.literal(1)).select_from(agents).where(
             and_(
-                agents.c.name == "Ollama Local",
+                agents.c.name == "Ollama",
                 agents.c.model == "llama3"
             )
         ).limit(1)
     ).first()
 
-    if exists is None:
+    if exists_ollama is None:
         conn.execute(
             insert(agents).values(
-                name="Ollama Local",
+                name="Ollama",
                 description="Agente local usando Ollama (Llama 3).",
                 provider="ollama",
                 model="llama3",
@@ -77,6 +79,31 @@ def upgrade() -> None:
             )
         )
 
+    # Agente OpenAI GPT
+    exists_openai = conn.execute(
+        select(sa.literal(1)).select_from(agents).where(
+            and_(
+                agents.c.name == "OpenAI GPT",
+                agents.c.model == "gpt-4o"
+            )
+        ).limit(1)
+    ).first()
+
+    if exists_openai is None:
+        conn.execute(
+            insert(agents).values(
+                name="OpenAI GPT",
+                description="Agente remoto usando API da OpenAI.",
+                provider="openai",
+                model="gpt-4o",
+                base_url="https://api.openai.com/v1",
+                temperature=0.7,
+                active=True,
+                owner_id=admin_id,
+                created_at=now,
+                updated_at=now
+            )
+        )
 
 def downgrade() -> None:
     conn = op.get_bind()
@@ -86,12 +113,20 @@ def downgrade() -> None:
     if users is None or agents is None:
         return
 
-    # Remover agente
+    # Remover agentes
     conn.execute(
         delete(agents).where(
             and_(
-                agents.c.name == "Ollama Local",
+                agents.c.name == "Ollama",
                 agents.c.model == "llama3"
+            )
+        )
+    )
+    conn.execute(
+        delete(agents).where(
+            and_(
+                agents.c.name == "OpenAI GPT",
+                agents.c.model == "gpt-4o"
             )
         )
     )

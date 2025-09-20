@@ -74,7 +74,7 @@ Envie uma pergunta ao **microserviço FastAPI** que consulta documentos no **Chr
 
 Exemplo de requisição:
 ```bash
-curl --location 'http://localhost:8001/api/assistant/query' --header 'Content-Type: application/json' --data '{"question": "Quem foi Pedro Álvares Cabral?"}'
+curl --location 'http://localhost:8001/api/run/stream' --header 'Content-Type: application/json' --data '{"question": "Quem foi Pedro Álvares Cabral?", "agent_id": 1}'
 ```
 
 Resposta (exemplo):

@@ -5,6 +5,15 @@
     <p><strong>Média por execução:</strong> {{ formatCurrency(summary.average_cost) }}</p>
     <p><strong>Execuções:</strong> {{ summary.executions }}</p>
 
+    <div v-if="summary.by_provider">
+      <p><strong>Por Agente/Provedor:</strong></p>
+      <ul>
+        <li v-for="(value, provider) in summary.by_provider" :key="provider">
+          {{ provider }} → {{ formatCurrency(value) }}
+        </li>
+      </ul>
+    </div>
+
     <table v-if="details.length > 0">
       <thead>
         <tr>
@@ -27,7 +36,12 @@
 <script setup lang="ts">
 import { withDefaults, defineProps, toRefs } from "vue";
 
-type Summary = { total_cost: number; average_cost: number; executions: number };
+type Summary = { 
+  total_cost: number; 
+  average_cost: number; 
+  executions: number; 
+  by_provider?: Record<string, number>; 
+};
 type Detail = { execution_id: number; agent_id?: number; cost: number; created_at: string };
 
 const props = withDefaults(
@@ -36,7 +50,7 @@ const props = withDefaults(
     details?: Detail[];
   }>(),
   {
-    summary: () => ({ total_cost: 0, average_cost: 0, executions: 0 }),
+    summary: () => ({ total_cost: 0, average_cost: 0, executions: 0, by_provider: {} }),
     details: () => [],
   }
 );
