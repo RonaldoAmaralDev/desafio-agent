@@ -96,14 +96,15 @@ git clone https://github.com/RonaldoAmaralDev/desafio-agent.git
 ```bash
 cd desafio-agent-main
 cp .env.example .env
-```
 # ➡️ edite variáveis no .env conforme seu ambiente (Postgres, Redis, OpenAI, Ollama etc.)
+```
 
 💻 Frontend (Vue 3 + Vite)
 ```bash
 cd desafio-agent-main/src/frontend
 cp .env.example .env
 # ➡️ edite VITE_API_URL para apontar para o backend (ex: http://localhost:8000/api/v1)
+```
 
 🐳 Docker Compose (Backend + Frontend + Banco + Redis)
 ```bash
