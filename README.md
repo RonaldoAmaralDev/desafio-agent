@@ -162,7 +162,6 @@ Para resetar completamente o banco de dados (apagar e recriar as tabelas), use o
 ```bash
 ./scripts/reset-db.sh
 ```  
-📌 Esse script é útil em ambiente de desenvolvimento para começar do zero.
 ⚠️ Atenção: todos os dados existentes serão removidos.
 ---
 
