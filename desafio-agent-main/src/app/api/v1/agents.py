@@ -12,6 +12,7 @@ from app.core.logging import get_logger
 from app.services.agent_service import AgentService
 from app.services.agent_execution_service import AgentExecutionService
 from app.services.cost_service import CostService
+from app.services.memory_service import MemoryService
 
 router = APIRouter(prefix="/agents", tags=["Agentes"])
 logger = get_logger(__name__)
@@ -19,6 +20,7 @@ logger = get_logger(__name__)
 agent_service = AgentService()
 agent_execution_service = AgentExecutionService()
 cost_service = CostService()
+memory_service = MemoryService()
 
 
 # ------------------------
@@ -81,3 +83,16 @@ def list_agent_costs(agent_id: int, db: Session = Depends(get_db)):
 @router.get("/{agent_id}/costs/summary", summary="Resumo de custos do agente")
 def summarize_agent_costs(agent_id: int, db: Session = Depends(get_db)):
     return cost_service.summarize_agent_costs(db, agent_id)
+
+@router.delete("/{agent_id}/memory")
+def clear_memory(agent_id: int, db: Session = Depends(get_db)):
+    """
+    Limpa a memória de um agente específico.
+    """
+    try:
+        memory_service.clear(agent_id)
+        logger.info(f"Memória do agente {agent_id} limpa com sucesso")
+        return {"status": "ok", "message": f"Memória do agente {agent_id} foi limpa"}
+    except Exception as e:
+        logger.error(f"Erro ao limpar memória do agente {agent_id}: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao limpar memória do agente")
