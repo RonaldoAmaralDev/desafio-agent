@@ -2,19 +2,22 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 from app.main import app
 from app.core.db import Base, get_db
 from app.models.agent import Agent
 from app.models.prompt import Prompt
 
 # ----------------------
-# Configuração banco de teste (SQLite in-memory)
+# Configuração banco de teste (SQLite in-memory compartilhado)
 # ----------------------
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-Base.metadata.create_all(bind=engine)
 
 
 def override_get_db():
@@ -25,7 +28,11 @@ def override_get_db():
         db.close()
 
 
+# sobrescreve dependência e recria tabelas
 app.dependency_overrides[get_db] = override_get_db
+Base.metadata.drop_all(bind=engine)
+Base.metadata.create_all(bind=engine)
+
 client = TestClient(app)
 
 
@@ -62,22 +69,22 @@ def test_create_prompt():
         "agent_id": agent.id,
     }
 
-    response = client.post("/prompts/", json=payload)
-    assert response.status_code == 200
+    response = client.post("/api/v1/prompts/", json=payload)
+    assert response.status_code == 200, response.text
     data = response.json()
     assert data["name"] == "Prompt Teste"
     assert data["agent_id"] == agent.id
 
 
 def test_list_prompts():
-    response = client.get("/prompts/")
-    assert response.status_code == 200
+    response = client.get("/api/v1/prompts/")
+    assert response.status_code == 200, response.text
     data = response.json()
     assert isinstance(data, list)
     assert len(data) >= 1
 
 
-def test_test_prompt():
+def test_test_prompt(monkeypatch):
     db = next(override_get_db())
     agent = create_agent(db, name="AgentePromptTest")
 
@@ -92,9 +99,12 @@ def test_test_prompt():
     db.commit()
     db.refresh(prompt)
 
-    response = client.post(f"/prompts/test/{agent.id}/{prompt.id}")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["agent_id"] == agent.id
-    assert data["prompt_id"] == prompt.id
-    assert "processando" in data["output"]
+    # mockar execução para não chamar LLM real
+    from app.services.execution_service import ExecutionService
+
+    def fake_run(self, db, execution_in):
+        class DummyExec:
+            def __init__(self, agent_id, prompt_id):
+                self.agent_id = agent_id
+                self.prompt_id = prompt_id
+                self.o
