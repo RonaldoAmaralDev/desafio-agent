@@ -1,58 +1,13 @@
 <script setup lang="ts">
 import { ref } from "vue"
-import { useToast } from "vue-toastification"
+import { useAgentStore } from "../stores/agentStore"
 
-const toast = useToast()
-
-const downloading = ref(false)
-const importing = ref(false)
+const agentStore = useAgentStore()
 const importFile = ref<File | null>(null)
 
-const API = "http://localhost:8000/api/v1";
-
-async function downloadAgents() {
-  try {
-    downloading.value = true
-    const res = await fetch(`${API}/agents/export`)
-    if (!res.ok) throw new Error("Falha no export")
-    const data = await res.json()
-
-    const blob = new Blob([JSON.stringify(data, null, 2)], {
-      type: "application/json",
-    })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = "agents_export.json"
-    a.click()
-    URL.revokeObjectURL(url)
-    toast.success("Exportação concluída! JSON baixado.")
-  } catch (e: any) {
-    toast.error("Erro: " + e.message)
-  } finally {
-    downloading.value = false
-  }
-}
-
-async function importAgents() {
-  if (!importFile.value) return
-  try {
-    importing.value = true
-    const text = await importFile.value.text()
-    const pkg = JSON.parse(text)
-
-    const res = await fetch(`${API}/agents/import`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(pkg.agents || pkg),
-    })
-    if (!res.ok) throw new Error("Falha no import")
-    const data = await res.json()
-    toast.success(`Importação concluída! Criados: ${data.stats.created}, Atualizados: ${data.stats.updated}`)
-  } catch (e: any) {
-    toast.error("Erro: " + e.message)
-  } finally {
-    importing.value = false
+function handleImport() {
+  if (importFile.value) {
+    agentStore.importAgents(importFile.value)
   }
 }
 </script>
@@ -62,8 +17,9 @@ async function importAgents() {
     <h2>Exportar / Importar Agentes</h2>
 
     <div class="actions">
-      <button :disabled="downloading" @click="downloadAgents">
-        {{ downloading ? "Baixando..." : "Exportar (JSON)" }}
+      <button :disabled="agentStore.downloading" @click="agentStore.exportAgents">
+        <span v-if="agentStore.downloading">⏳ Baixando...</span>
+        <span v-else>⬇️ Exportar (JSON)</span>
       </button>
     </div>
 
@@ -73,8 +29,9 @@ async function importAgents() {
         accept="application/json"
         @change="(e:any) => importFile.value = e.target.files?.[0] || null"
       />
-      <button :disabled="importing || !importFile" @click="importAgents">
-        {{ importing ? "Importando..." : "Importar JSON" }}
+      <button :disabled="agentStore.importing || !importFile" @click="handleImport">
+        <span v-if="agentStore.importing">⏳ Importando...</span>
+        <span v-else>⬆️ Importar JSON</span>
       </button>
     </div>
   </div>
@@ -84,26 +41,27 @@ async function importAgents() {
 .export-import-card {
   border: 1px solid #e5e7eb;
   border-radius: 12px;
-  padding: 16px;
-  margin-top: 16px;
-  background: #f9fafb;
+  padding: 20px;
+  margin-top: 20px;
+  background: white;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
 }
 .actions {
-  margin-top: 12px;
+  margin-top: 16px;
   display: flex;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
 }
 button {
-  padding: 8px 14px;
-  background: #111827;
+  padding: 10px 16px;
+  background: #1e88e5;
   color: #fff;
   border: none;
   border-radius: 8px;
   cursor: pointer;
+  transition: background 0.2s;
 }
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+button:hover:not(:disabled) {
+  background: #1565c0;
 }
 </style>

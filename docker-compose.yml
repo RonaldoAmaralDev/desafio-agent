@@ -24,10 +24,14 @@ services:
       # REDIS
       - REDIS_URL=redis://redis:6379/0
     depends_on:
-      - db
-      - chroma
-      - ollama
-      - redis
+      db:
+        condition: service_healthy
+      chroma:
+        condition: service_started
+      ollama:
+        condition: service_started
+      redis:
+        condition: service_started
     volumes:
       - ./chroma_db:/app/chroma_db
       - ./ollama_data:/root/.ollama
@@ -60,6 +64,11 @@ services:
       - "5432:5432"
     volumes:
       - ./pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d desafio"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   chroma:
     image: ghcr.io/chroma-core/chroma:latest
@@ -77,6 +86,9 @@ services:
     container_name: ollama
     ports:
       - "11434:11434"
+    environment:
+      - OLLAMA_MODEL=${OLLAMA_MODEL}
+      - OLLAMA_EMBED_MODEL=${OLLAMA_EMBED_MODEL:-nomic-embed-text}
     volumes:
       - ./ollama_data:/root/.ollama
     restart: unless-stopped

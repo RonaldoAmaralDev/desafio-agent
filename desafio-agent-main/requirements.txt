@@ -16,6 +16,7 @@ redis>=5.0.0
 
 # Pydantic (com validações extra)
 pydantic[email]
+pydantic-settings>=2.0.0
 
 # Testes
 pytest

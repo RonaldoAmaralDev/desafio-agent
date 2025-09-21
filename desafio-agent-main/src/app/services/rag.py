@@ -3,43 +3,71 @@ from langchain_community.vectorstores import Chroma
 from langchain.chains import ConversationalRetrievalChain
 from langchain.prompts import PromptTemplate
 from langchain_ollama import ChatOllama, OllamaEmbeddings
+from app.core.config import settings
+from app.core.logging import get_logger
+from app.core.memory import AgentMemory
+
+logger = get_logger(__name__)
+
+QA_PROMPT = PromptTemplate.from_template("""
+Você é um assistente especializado que **sempre responde em português do Brasil**.
+
+Use o seguinte contexto para formular a resposta:
+{context}
+
+Histórico da conversa:
+{chat_history}
+
+Pergunta:
+{question}
+
+Responda em português de forma clara e objetiva:
+""")
 
 
-def query_rag(query: str, top_k: int = 4, persist_dir: str = './chroma_db') -> str:
-    ollama_url = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
+class RagService:
+    def __init__(self):
+        self.ollama_url = settings.OLLAMA_BASE_URL
+        self.persist_dir = settings.CHROMA_PERSIST_DIR
 
-    # Embeddings
-    embeddings = OllamaEmbeddings(model="nomic-embed-text", base_url=ollama_url)
+        self.embeddings = OllamaEmbeddings(
+            model=settings.OLLAMA_EMBED_MODEL,
+            base_url=self.ollama_url
+        )
 
-    # Banco vetorial
-    db = Chroma(persist_directory=persist_dir, embedding_function=embeddings)
-    retriever = db.as_retriever(search_kwargs={'k': top_k})
+        self.db = Chroma(
+            persist_directory=self.persist_dir,
+            embedding_function=self.embeddings
+        )
 
-    # Modelo LLM
-    llm = ChatOllama(model="llama3", temperature=0, base_url=ollama_url)
+        self.retriever = self.db.as_retriever(search_kwargs={"k": settings.RAG_TOP_K})
 
-    # Prompt com 'context'
-    QA_PROMPT = PromptTemplate.from_template("""
-    Você é um assistente especializado que **sempre responde em português do Brasil**.
+        self.llm = ChatOllama(
+            model=settings.OLLAMA_MODEL,
+            temperature=settings.OLLAMA_TEMPERATURE,
+            base_url=self.ollama_url
+        )
 
-    Use o seguinte contexto para formular a resposta:
-    {context}
+    def query(self, query: str, agent_id: int | None = None) -> str:
+        """
+        Executa uma query RAG e retorna resposta em português.
+        """
+        chat_history = []
+        if agent_id:
+            chat_history = AgentMemory.get(agent_id)
 
-    Histórico da conversa:
-    {chat_history}
+        chain = ConversationalRetrievalChain.from_llm(
+            self.llm,
+            self.retriever,
+            combine_docs_chain_kwargs={"prompt": QA_PROMPT}
+        )
 
-    Pergunta:
-    {question}
+        try:
+            result = chain.invoke({"question": query, "chat_history": chat_history})
+            answer = result["answer"]
 
-    Resposta em português:
-    """)
-
-    # Cadeia de RAG com prompt customizado
-    chain = ConversationalRetrievalChain.from_llm(
-        llm,
-        retriever,
-        combine_docs_chain_kwargs={"prompt": QA_PROMPT}
-    )
-
-    res = chain.invoke({"question": query, "chat_history": []})
-    return res["answer"]
+            logger.info(f"RAG executado (query='{query[:30]}...') → resposta gerada")
+            return answer
+        except Exception as e:
+            logger.error(f"Erro no RAG: {str(e)}")
+            raise

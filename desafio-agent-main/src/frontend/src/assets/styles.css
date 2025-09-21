@@ -1,0 +1,129 @@
+/* -------------------
+   Reset básico
+------------------- */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+ul {
+  list-style: none;
+}
+
+/* -------------------
+   Variáveis de tema
+------------------- */
+:root {
+  --primary: #1e88e5;
+  --primary-light: #bbdefb;
+  --primary-dark: #1565c0;
+  --text: #333;
+  --bg: #f5f7fa;
+  --border: #e0e0e0;
+}
+
+/* -------------------
+   Layout base
+------------------- */
+#app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* -------------------
+   Header
+------------------- */
+.app-header {
+  background: var(--primary);
+  color: white;
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.logo {
+  font-size: 1.3rem;
+  font-weight: bold;
+}
+
+.nav-links {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.nav-link {
+  color: white;
+  font-weight: 500;
+  transition: color 0.2s ease, border-bottom 0.2s ease;
+}
+
+.nav-link:hover {
+  color: var(--primary-light);
+}
+
+.active-link {
+  border-bottom: 2px solid #fff;
+  font-weight: bold;
+  padding-bottom: 2px;
+}
+
+/* -------------------
+   Main
+------------------- */
+.app-main {
+  flex: 1;
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* -------------------
+   Footer
+------------------- */
+.app-footer {
+  background: var(--primary-dark);
+  color: white;
+  text-align: center;
+  padding: 1rem;
+  font-size: 0.9rem;
+}
+
+/* -------------------
+   Utilitários
+------------------- */
+.btn {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-weight: 500;
+  transition: background 0.2s ease;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: var(--primary-dark);
+}

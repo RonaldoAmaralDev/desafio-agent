@@ -1,69 +1,59 @@
-<template>
-  <div v-if="summary.executions > 0" class="cost-history">
-    <h3>💰 Histórico de Custos</h3>
-    <p><strong>Total gasto:</strong> {{ formatCurrency(summary.total_cost) }}</p>
-    <p><strong>Média por execução:</strong> {{ formatCurrency(summary.average_cost) }}</p>
-    <p><strong>Execuções:</strong> {{ summary.executions }}</p>
-
-    <div v-if="summary.by_provider">
-      <p><strong>Por Agente/Provedor:</strong></p>
-      <ul>
-        <li v-for="(value, provider) in summary.by_provider" :key="provider">
-          {{ provider }} → {{ formatCurrency(value) }}
-        </li>
-      </ul>
-    </div>
-
-    <table v-if="details.length > 0">
-      <thead>
-        <tr>
-          <th>Execução</th>
-          <th>Custo</th>
-          <th>Data</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="c in details" :key="c.execution_id">
-          <td>{{ c.execution_id }}</td>
-          <td>{{ formatCurrency(c.cost) }}</td>
-          <td>{{ new Date(c.created_at).toLocaleString("pt-BR") }}</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-</template>
-
 <script setup lang="ts">
-import { withDefaults, defineProps, toRefs } from "vue";
+import { storeToRefs } from "pinia"
+import { useAgentRunnerStore } from "../stores/agentRunnerStore"
 
-type Summary = { 
-  total_cost: number; 
-  average_cost: number; 
-  executions: number; 
-  by_provider?: Record<string, number>; 
-};
-type Detail = { execution_id: number; agent_id?: number; cost: number; created_at: string };
-
-const props = withDefaults(
-  defineProps<{
-    summary?: Summary;
-    details?: Detail[];
-  }>(),
-  {
-    summary: () => ({ total_cost: 0, average_cost: 0, executions: 0, by_provider: {} }),
-    details: () => [],
-  }
-);
-
-const { summary, details } = toRefs(props);
+const store = useAgentRunnerStore()
+const { costSummary, costDetails } = storeToRefs(store)
 
 function formatCurrency(value: number) {
   return value.toLocaleString("pt-BR", {
     style: "currency",
     currency: "BRL",
-  });
+  })
 }
 </script>
+
+<template>
+  <div v-if="costSummary.executions > 0" class="cost-history">
+    <h3>💰 Histórico de Custos</h3>
+
+    <div class="summary">
+      <p><strong>Total gasto:</strong> {{ formatCurrency(costSummary.total_cost) }}</p>
+      <p><strong>Média por execução:</strong> {{ formatCurrency(costSummary.average_cost) }}</p>
+      <p><strong>Execuções:</strong> {{ costSummary.executions }}</p>
+    </div>
+
+    <div v-if="costSummary.by_provider && Object.keys(costSummary.by_provider).length > 0" class="providers">
+      <p><strong>Por Provedor:</strong></p>
+      <ul>
+        <li v-for="(value, provider) in costSummary.by_provider" :key="provider">
+          {{ provider }} → {{ formatCurrency(value) }}
+        </li>
+      </ul>
+    </div>
+
+    <div class="details">
+      <h4>Detalhes das execuções</h4>
+      <table v-if="costDetails.length > 0">
+        <thead>
+          <tr>
+            <th>Execução</th>
+            <th>Custo</th>
+            <th>Data</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="c in costDetails" :key="c.execution_id">
+            <td>#{{ c.execution_id }}</td>
+            <td>{{ formatCurrency(c.cost) }}</td>
+            <td>{{ new Date(c.created_at).toLocaleString("pt-BR") }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p v-else class="no-details">Nenhum detalhe disponível.</p>
+    </div>
+  </div>
+</template>
 
 <style scoped>
 .cost-history {

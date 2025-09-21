@@ -7,14 +7,19 @@ from app.schemas.agent_export import (
     AgentExportSchema,
     AgentImportSchema,
 )
+from app.core.logging import get_logger
 
+logger = get_logger(__name__)
+
+EXPORT_VERSION = 1
 
 class AgentExportService:
     @staticmethod
     def export_all(db: Session) -> AgentsExportPackage:
         agents = db.query(Agent).options(joinedload(Agent.prompts)).all()
+        logger.info(f"Exportando {len(agents)} agentes")
         return AgentsExportPackage(
-            version=1,
+            version=EXPORT_VERSION,
             exported_at=datetime.utcnow(),
             agents=[AgentExportSchema.from_orm(a) for a in agents],
         )
@@ -28,9 +33,12 @@ class AgentExportService:
             .first()
         )
         if not agent:
-            raise ValueError("Agent not found")
+            logger.warning(f"Tentativa de exportar agente inexistente id={agent_id}")
+            raise ValueError("Agente não encontrado")
+
+        logger.info(f"Exportando agente {agent.id} - {agent.name}")
         return AgentsExportPackage(
-            version=1,
+            version=EXPORT_VERSION,
             exported_at=datetime.utcnow(),
             agents=[AgentExportSchema.from_orm(agent)],
         )
@@ -38,55 +46,77 @@ class AgentExportService:
     @staticmethod
     def import_agents(db: Session, agents: list[AgentImportSchema]) -> dict:
         created, updated = 0, 0
-        for incoming in agents:
-            agent = (
-                db.query(Agent)
-                .filter(Agent.name == incoming.name, Agent.owner_id == incoming.owner_id)
-                .first()
-            )
-            if agent:
-                # update
-                agent.description = incoming.description
-                agent.model = incoming.model
-                agent.temperature = incoming.temperature
-                agent.provider = incoming.provider
-                agent.base_url = incoming.base_url
-                agent.active = incoming.active
-                updated += 1
-            else:
-                # create
-                agent = Agent(
-                    name=incoming.name,
-                    description=incoming.description,
-                    model=incoming.model,
-                    temperature=incoming.temperature,
-                    owner_id=incoming.owner_id,
-                    provider=incoming.provider,
-                    base_url=incoming.base_url,
-                    active=incoming.active,
-                )
-                db.add(agent)
-                db.flush()
-                created += 1
-
-            # prompts
-            for pr in incoming.prompts:
-                prompt = (
-                    db.query(Prompt)
-                    .filter(Prompt.agent_id == agent.id, Prompt.name == pr.name)
+        try:
+            for incoming in agents:
+                agent = (
+                    db.query(Agent)
+                    .filter(Agent.name == incoming.name, Agent.owner_id == incoming.owner_id)
                     .first()
                 )
-                if prompt:
-                    prompt.description = pr.description
-                    prompt.content = pr.content
+
+                if agent:
+                    logger.info(f"Atualizando agente existente: {agent.name}")
+                    AgentExportService._update_agent(agent, incoming)
+                    updated += 1
                 else:
-                    db.add(
-                        Prompt(
-                            agent_id=agent.id,
-                            name=pr.name,
-                            description=pr.description,
-                            content=pr.content,
-                        )
-                    )
-        db.commit()
+                    logger.info(f"Criando novo agente: {incoming.name}")
+                    agent = AgentExportService._create_agent(db, incoming)
+                    created += 1
+
+                AgentExportService._sync_prompts(db, agent, incoming.prompts)
+
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Erro ao importar agentes: {str(e)}")
+            raise
+
         return {"created": created, "updated": updated}
+
+    @staticmethod
+    def _update_agent(agent: Agent, data: AgentImportSchema):
+        agent.description = data.description
+        agent.model = data.model
+        agent.temperature = data.temperature
+        agent.provider = data.provider
+        agent.base_url = data.base_url
+        agent.active = data.active
+
+    @staticmethod
+    def _create_agent(db: Session, data: AgentImportSchema) -> Agent:
+        agent = Agent(
+            name=data.name,
+            description=data.description,
+            model=data.model,
+            temperature=data.temperature,
+            owner_id=data.owner_id,
+            provider=data.provider,
+            base_url=data.base_url,
+            active=data.active,
+        )
+        db.add(agent)
+        db.flush()
+        return agent
+
+    @staticmethod
+    def _sync_prompts(db: Session, agent: Agent, prompts: list):
+        for pr in prompts:
+            prompt = (
+                db.query(Prompt)
+                .filter(Prompt.agent_id == agent.id, Prompt.name == pr.name)
+                .first()
+            )
+            if prompt:
+                logger.info(f"Atualizando prompt {pr.name} do agente {agent.id}")
+                prompt.description = pr.description
+                prompt.content = pr.content
+            else:
+                logger.info(f"Criando prompt {pr.name} para agente {agent.id}")
+                db.add(
+                    Prompt(
+                        agent_id=agent.id,
+                        name=pr.name,
+                        description=pr.description,
+                        content=pr.content,
+                    )
+                )

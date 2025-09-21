@@ -1,46 +1,77 @@
-from app.schemas.execution import ExecutionCreateSchema, ExecutionResponseSchema
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
-from app.db.session import get_db
 from sqlalchemy.orm import Session
-from app.models.execution import Execution
-from src.app.models.agent import Agent
-import openai
-from src.app.core.logging import get_logger
 
-router = APIRouter(prefix="/executions", tags=["executions"])
+from app.core.db import get_db
+from app.schemas.execution import ExecutionCreateSchema, ExecutionResponseSchema
+from app.services.execution_service import ExecutionService
+from app.core.logging import get_logger
+
+router = APIRouter(prefix="/executions", tags=["Execuções"])
 logger = get_logger(__name__)
 
-@router.post("/", response_model=ExecutionResponseSchema)
+execution_service = ExecutionService()
+
+
+@router.post(
+    "/",
+    response_model=ExecutionResponseSchema,
+    summary="Executar um agente"
+)
 def run_execution(exec: ExecutionCreateSchema, db: Session = Depends(get_db)):
-    logger.info(f"Solicitação de execução para agente {exec.agent_id} com input: {exec.input}")
-    agent = db.query(Agent).filter(Agent.id == exec.agent_id).first()
-    if not agent:
-        logger.warning(f"Agente {exec.agent_id} não encontrado para execução")
-        raise HTTPException(status_code=404, detail="Agente não foi encontrado.")
+    """
+    Executa um agente com a entrada fornecida e retorna a saída
+    registrada no banco de dados.
+    """
+    try:
+        return execution_service.run(db, exec)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Erro ao executar agente {exec.agent_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Erro interno ao executar agente")
 
-    logger.info(f"Executando task usando modelo '{agent.model}' com temperatura {agent.temperature}")
-    response = openai.ChatCompletion.create(
-        model=agent.model,
-        messages=[{"role": "user", "content": exec.input}],
-        temperature=agent.temperature
-    )
-    output = response.choices[0].message.content
-    logger.info(f"Execução concluída para agente {agent.id}. Output: {output}")
 
-    db_exec = Execution(
-        agent_id=agent.id,
-        input=exec.input,
-        output=output
-    )
-    db.add(db_exec)
-    db.commit()
-    db.refresh(db_exec)
-    logger.info(f"Execução registrada no banco com ID {db_exec.id} para agente {agent.id}")
-    return db_exec
+@router.get(
+    "/",
+    response_model=List[ExecutionResponseSchema],
+    summary="Listar execuções"
+)
+def list_executions(
+    db: Session = Depends(get_db),
+    agent_id: Optional[int] = None
+):
+    """
+    Lista todas as execuções registradas.
+    Se `agent_id` for fornecido, lista apenas execuções do agente específico.
+    """
+    return execution_service.list_executions(db, agent_id)
 
-@router.get("/", response_model=List[ExecutionResponseSchema])
-def list_executions(db: Session = Depends(get_db)):
-    executions = db.query(Execution).all()
-    logger.info(f"Listando {len(executions)} execuções registradas")
-    return executions
+
+@router.get(
+    "/{execution_id}",
+    response_model=ExecutionResponseSchema,
+    summary="Buscar execução por ID"
+)
+def get_execution(execution_id: int, db: Session = Depends(get_db)):
+    """
+    Retorna os detalhes de uma execução pelo seu ID.
+    """
+    exec = execution_service.get_execution(db, execution_id)
+    if not exec:
+        raise HTTPException(status_code=404, detail="Execução não encontrada")
+    return exec
+
+
+@router.delete(
+    "/{execution_id}",
+    summary="Remover execução"
+)
+def delete_execution(execution_id: int, db: Session = Depends(get_db)):
+    """
+    Remove uma execução (e seus custos associados) pelo ID.
+    """
+    success = execution_service.delete_execution(db, execution_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Execução não encontrada")
+    return {"status": "deleted", "execution_id": execution_id}

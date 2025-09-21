@@ -1,11 +1,23 @@
+<script setup lang="ts">
+import { onMounted } from "vue"
+import { useAgentRunnerStore } from "../stores/agentRunnerStore"
+import CostHistory from "./CostHistory.vue"
+
+const store = useAgentRunnerStore()
+
+onMounted(() => {
+  store.fetchAgents()
+})
+</script>
+
 <template>
   <div class="agent-runner">
     <h2>Executar Agente</h2>
 
     <div class="form-row">
       <label for="agent">Agente:</label>
-      <select v-model="selectedAgentId" id="agent">
-        <option v-for="agent in agents" :key="agent.id" :value="agent.id">
+      <select v-model="store.selectedAgentId" id="agent">
+        <option v-for="agent in store.agents" :key="agent.id" :value="agent.id">
           {{ agent.name }} ({{ agent.model }})
         </option>
       </select>
@@ -13,179 +25,45 @@
 
     <div class="form-row">
       <label for="question">Pergunta:</label>
-      <input v-model="question" id="question" placeholder="Digite sua pergunta..." />
+      <input v-model="store.question" id="question" placeholder="Digite sua pergunta..." />
     </div>
 
     <div class="buttons">
-      <button @click="askAgent" :disabled="!selectedAgentId || !question || loading">
-        {{ loading ? "Perguntando..." : "Perguntar" }}
+      <button @click="store.askAgent" :disabled="!store.selectedAgentId || !store.question || store.loading">
+        {{ store.loading ? "Perguntando..." : "Perguntar" }}
       </button>
-      <button @click="clearMemory" :disabled="!selectedAgentId || loading" class="btn-clear">
+      <button @click="store.clearMemory" :disabled="!store.selectedAgentId || store.loading" class="btn-clear">
         🧹 Limpar Memória
       </button>
     </div>
 
-    <div v-if="loading" class="loading">
+    <div v-if="store.loading" class="loading">
       <div class="spinner"></div>
       <span>Aguarde, processando...</span>
     </div>
 
-    <div v-if="answer" class="response-box">
+    <div v-if="store.answer" class="response-box">
       <h3>Resposta:</h3>
-      <p v-if="agentInfo"><strong>Agente:</strong> {{ agentInfo.name }} ({{ agentInfo.provider }})</p>
-      <pre>{{ answer }}</pre>
+      <p v-if="store.agentInfo">
+        <strong>Agente:</strong> {{ store.agentInfo.name }} ({{ store.agentInfo.provider }})
+      </p>
+      <pre>{{ store.answer }}</pre>
     </div>
 
-    <div v-if="memory.length > 0" class="memory-box">
+    <div v-if="store.memory.length > 0" class="memory-box">
       <h3>Memória usada:</h3>
       <ul>
-        <li v-for="(m, idx) in memory" :key="idx">
-            <strong>Você:</strong> {{ m.input }} <br />
-            <strong>Resposta:</strong> {{ m.output  }} <br />
-            <small v-if="m.agent_name">[{{ m.agent_name }} / {{ m.provider }}]</small>
+        <li v-for="(m, idx) in store.memory" :key="idx">
+          <strong>Você:</strong> {{ m.input }} <br />
+          <strong>Resposta:</strong> {{ m.output }} <br />
+          <small v-if="m.agent_name">[{{ m.agent_name }} / {{ m.provider }}]</small>
         </li>
       </ul>
     </div>
 
-    <CostHistory :summary="costSummary" />
-
-    <Toast v-if="toast.message" :message="toast.message" :type="toast.type" />
+    <CostHistory />
   </div>
 </template>
-
-<script setup lang="ts">
-import { ref, onMounted } from "vue";
-import { useToast } from "vue-toastification"
-import CostHistory from "./CostHistory.vue";
-
-const toast = useToast()
-
-const apiAgents = "http://localhost:8000/api/v1/agents";
-
-const agents = ref<any[]>([]);
-const selectedAgentId = ref<string>("");
-const question = ref<string>("");
-const answer = ref<string>("");
-const memory = ref<any[]>([]);
-const loading = ref(false);
-const agentInfo = ref<{ name: string; provider: string } | null>(null);
-
-const costSummary = ref({ total_cost: 0, average_cost: 0, executions: 0 });
-
-async function fetchAgents() {
-  try {
-    const res = await fetch(apiAgents);
-    agents.value = await res.json();
-    if (agents.value.length > 0) {
-      selectedAgentId.value = agents.value[0].id;
-    }
-  } catch (err: any) {
-    toast.error("Ocorreu o erro: " + err.message)
-  }
-}
-
-async function fetchCosts(agentId: string) {
-  const res = await fetch(`http://localhost:8000/api/v1/agents/${agentId}/costs/summary`);
-  if (!res.ok) return;
-  const data = await res.json();
-  costSummary.value = data;
-}
-
-async function askAgent() {
-  loading.value = true
-  answer.value = ""
-  memory.value = []
-  agentInfo.value = null
-
-  try {
-    const res = await fetch(`${apiAgents}/${selectedAgentId.value}/run/stream`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ input: question.value })
-    })
-
-    if (!res.ok || !res.body) {
-      const errorData = await res.json().catch(() => ({}))
-      if (res.status === 402) {
-        toast.error("💳 Sem créditos: " + (errorData.detail || "A conta OpenAI não possui mais saldo."))
-      } else if (res.status === 401) {
-        toast.error("🔑 Erro de autenticação: " + (errorData.detail || "Chave de API inválida ou ausente."))
-      } else {
-        toast.error("⚠️ Erro: " + (errorData.detail || "Falha ao executar agente"))
-      }
-      return
-    }
-
-    const reader = res.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ""
-
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
-
-      const parts = buffer.split("\n")
-      buffer = parts.pop() || ""
-
-      for (const part of parts) {
-        if (!part.trim()) continue
-        const msg = JSON.parse(part)
-
-        if (msg.type === "error") {
-          toast.error(msg.message)
-          loading.value = false
-          return
-        }
-
-        if (msg.type === "token") {
-          answer.value += msg.content
-        }
-
-        if (msg.type === "end") {
-          answer.value = msg.answer
-          memory.value = msg.memory || []
-          agentInfo.value = { name: msg.agent_name, provider: msg.provider }
-          toast.success("✅ Execução concluída!")
-          await fetchCosts(selectedAgentId.value)
-        }
-      }
-    }
-  } catch (err: any) {
-    toast.error("❌ Ocorreu o erro: " + err.message)
-  } finally {
-    loading.value = false
-  }
-}
-
-async function clearMemory() {
-  if (!selectedAgentId.value) return;
-
-  loading.value = true;
-  try {
-    const res = await fetch(`${apiAgents}/${selectedAgentId.value}/memory`, {
-      method: "DELETE"
-    });
-
-    if (!res.ok) {
-      const errorData = await res.json();
-      throw new Error(errorData.detail || "Erro ao limpar memória");
-    }
-
-    await res.json();
-    memory.value = [];
-    toast.success("Memória limpa com sucesso!");
-  } catch (err: any) {
-    toast.error("Ocorreu o erro: " + err.message)
-  } finally {
-    loading.value = false;
-  }
-}
-
-onMounted(() => {
-  fetchAgents();
-});
-</script>
 
 <style scoped>
 .agent-runner {

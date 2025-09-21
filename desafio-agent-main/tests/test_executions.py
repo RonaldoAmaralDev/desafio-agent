@@ -1,58 +1,62 @@
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
-from src.app.models.execution import Execution
-from src.app.models.agent import Agent
-from src.app.models.user import User
-from app.db.session import get_db, engine
-from src.app.main import app
-from uuid import uuid4
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from app.main import app
+from app.core.db import Base, get_db
+from app.models.agent import Agent
 
+# ----------------------
+# Configuração banco de teste (SQLite in-memory)
+# ----------------------
+SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+Base.metadata.create_all(bind=engine)
+
+
+def override_get_db():
+    db = TestingSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+app.dependency_overrides[get_db] = override_get_db
 client = TestClient(app)
 
-@pytest.fixture
-def db_session():
-    db: Session = next(get_db())
-    yield db
-    db.rollback()
 
-@pytest.fixture
-def create_user(db_session):
-    user = User(
-        name="Test User",
-        email=f"user_{uuid4()}@example.com",
-        password="123"
-    )
-    db_session.add(user)
-    db_session.commit()
-    return user
-
-@pytest.fixture
-def create_agent(db_session, create_user):
-    agent = Agent(
-        name="Agent Test",
-        model="gpt-3.5-turbo",
-        temperature=0.5,
-        owner_id=create_user.id
-    )
-    db_session.add(agent)
-    db_session.commit()
+# ----------------------
+# Helpers
+# ----------------------
+def create_agent(db, name="AgenteTeste"):
+    agent = Agent(name=name, email="teste@exemplo.com", model="gpt-4o", owner_id=1)
+    db.add(agent)
+    db.commit()
+    db.refresh(agent)
     return agent
 
-@pytest.fixture
-def create_execution(db_session, create_agent):
-    execution = Execution(
-        agent_id=create_agent.id,
-        input="Test input",
-        output="Test output"
-    )
-    db_session.add(execution)
-    db_session.commit()
-    db_session.refresh(execution)
-    return execution
 
-def test_create_execution(db_session, create_execution):
-    response = client.get("/api/v1/executions/")
+# ----------------------
+# Tests
+# ----------------------
+def test_create_and_list_executions():
+    # cria agente primeiro
+    db = next(override_get_db())
+    agent = create_agent(db)
+
+    payload = {"agent_id": agent.id, "input": "Qual é a capital da França?"}
+    response = client.post("/executions/", json=payload)
     assert response.status_code == 200
     data = response.json()
-    assert any(a["id"] == create_execution.id for a in data)
+    assert data["agent_id"] == agent.id
+    assert data["input"] == "Qual é a capital da França?"
+
+    # listar execuções
+    response = client.get("/executions/")
+    assert response.status_code == 200
+    executions = response.json()
+    assert isinstance(executions, list)
+    assert len(executions) >= 1

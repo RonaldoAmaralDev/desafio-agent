@@ -90,9 +90,23 @@ Demonstrar competências em:
 ### Setup Local  
 ```bash
 git clone https://github.com/RonaldoAmaralDev/desafio-agent.git
+```
+
+⚙️ Backend (FastAPI)
+```bash
 cd desafio-agent-main
 cp .env.example .env
-# edite variáveis do .env se necessário
+```
+# ➡️ edite variáveis no .env conforme seu ambiente (Postgres, Redis, OpenAI, Ollama etc.)
+
+💻 Frontend (Vue 3 + Vite)
+```bash
+cd desafio-agent-main/src/frontend
+cp .env.example .env
+# ➡️ edite VITE_API_URL para apontar para o backend (ex: http://localhost:8000/api/v1)
+
+🐳 Docker Compose (Backend + Frontend + Banco + Redis)
+```bash
 docker compose up --build
 ```
 
@@ -141,6 +155,14 @@ POST /api/v1/rag/upload
 pytest tests/ --cov=src
 ```
 
+---
+## 🧪 Limpar Dados (Reset DB)
+Para resetar completamente o banco de dados (apagar e recriar as tabelas), use o script:
+```bash
+./scripts/reset-db.sh
+```  
+📌 Esse script é útil em ambiente de desenvolvimento para começar do zero.
+⚠️ Atenção: todos os dados existentes serão removidos.
 ---
 
 ## 📈 Diferenciais Implementados  

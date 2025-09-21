@@ -1,29 +1,39 @@
 import json
 from typing import List, Dict
 from app.core.redis import redis_client
+from app.core.config import settings
 
-MEMORY_LIMIT = 5  # últimas 5 interações
+# Limite de memória (configurável via .env)
+MEMORY_LIMIT = settings.AGENT_MEMORY_LIMIT
+MEMORY_TTL = settings.AGENT_MEMORY_TTL  # expiração opcional em segundos
 
-def save_agent_memory(agent_id: int, user_input: str, agent_output: str):
+class AgentMemory:
     """
-    Salva interação no histórico de memória de curto prazo do agente.
+    Gerenciador de memória de curto prazo dos agentes.
+    Usa Redis para armazenar interações recentes.
     """
-    key = f"agent:{agent_id}:memory"
-    entry = json.dumps({"input": user_input, "output": agent_output})
-    redis_client.lpush(key, entry)
-    redis_client.ltrim(key, 0, MEMORY_LIMIT - 1)
 
-def get_agent_memory(agent_id: int) -> List[Dict]:
-    """
-    Recupera histórico recente do agente (lista de interações).
-    """
-    key = f"agent:{agent_id}:memory"
-    raw = redis_client.lrange(key, 0, -1)
-    return [json.loads(r) for r in raw] if raw else []
+    @staticmethod
+    def _key(agent_id: int) -> str:
+        return f"{settings.APP_NAME.lower().replace(' ', '-')}:agent:{agent_id}:memory"
 
-def clear_agent_memory(agent_id: int):
-    """
-    Limpa memória do agente (se necessário).
-    """
-    key = f"agent:{agent_id}:memory"
-    redis_client.delete(key)
+    @classmethod
+    def save(cls, agent_id: int, user_input: str, agent_output: str):
+        entry = json.dumps({"input": user_input, "output": agent_output})
+        key = cls._key(agent_id)
+
+        redis_client.lpush(key, entry)
+        redis_client.ltrim(key, 0, MEMORY_LIMIT - 1)
+
+        if MEMORY_TTL > 0:
+            redis_client.expire(key, MEMORY_TTL)
+
+    @classmethod
+    def get(cls, agent_id: int) -> List[Dict]:
+        key = cls._key(agent_id)
+        raw = redis_client.lrange(key, 0, -1)
+        return [json.loads(r) for r in raw] if raw else []
+
+    @classmethod
+    def clear(cls, agent_id: int):
+        redis_client.delete(cls._key(agent_id))

@@ -1,0 +1,1 @@
+echo "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AA..." | base64 --decode > favicon.png

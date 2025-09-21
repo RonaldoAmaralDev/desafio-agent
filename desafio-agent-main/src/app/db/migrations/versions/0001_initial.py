@@ -22,7 +22,8 @@ def upgrade():
         sa.Column('name', sa.String(255), nullable=False),
         sa.Column('email', sa.String(255), nullable=False, unique=True),
         sa.Column('password', sa.String(255), nullable=False),
-        sa.Column('created_at', postgresql.TIMESTAMP(), nullable=True)
+        sa.Column('created_at', postgresql.TIMESTAMP(), nullable=True),
+        sa.Column('updated_at', postgresql.TIMESTAMP(timezone=True), nullable=True)
     )
 
     # Tabela de agentes
@@ -62,7 +63,8 @@ def upgrade():
         sa.Column('agent_id', sa.Integer(), sa.ForeignKey('agents.id'), nullable=False),
         sa.Column('input', sa.String(), nullable=False),
         sa.Column('output', sa.String(), nullable=True),
-        sa.Column('created_at', postgresql.TIMESTAMP(timezone=True), server_default=sa.text('now()'))
+        sa.Column('created_at', postgresql.TIMESTAMP(timezone=True), server_default=sa.text('now()')),
+        sa.Column('updated_at', postgresql.TIMESTAMP(timezone=True), nullable=True)
     )
 
     # Tabela de custos por execução
@@ -72,7 +74,8 @@ def upgrade():
         sa.Column('execution_id', sa.Integer(), sa.ForeignKey('executions.id'), nullable=False),
         sa.Column('agent_id', sa.Integer(), sa.ForeignKey('agents.id'), nullable=False),
         sa.Column('cost', sa.Float(), nullable=False),
-        sa.Column('created_at', postgresql.TIMESTAMP(timezone=True), server_default=sa.text('now()'))
+        sa.Column('created_at', postgresql.TIMESTAMP(timezone=True), server_default=sa.text('now()')),
+        sa.Column('updated_at', postgresql.TIMESTAMP(timezone=True), nullable=True)
     )
 
     # Tabela de workflows

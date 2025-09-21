@@ -1,49 +1,112 @@
 import pytest
 from fastapi.testclient import TestClient
-from uuid import uuid4
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 from app.main import app
-from app.db.session import get_db, engine
-from app.models import Base, User, Agent
+from app.core.db import Base, get_db
+from app.models.agent import Agent
 
+# ----------------------
+# Configuração banco de teste (SQLite in-memory)
+# ----------------------
+SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+Base.metadata.create_all(bind=engine)
+
+
+def override_get_db():
+    db = TestingSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+app.dependency_overrides[get_db] = override_get_db
 client = TestClient(app)
 
-@pytest.fixture(scope="session", autouse=True)
-def create_test_db():
-    Base.metadata.create_all(bind=engine)
-    yield
 
-@pytest.fixture
-def db_session():
-    db = next(get_db())
-    yield db
-    db.rollback()
-
-@pytest.fixture
-def create_user(db_session):
-    user = User(
-        name="Test User",
-        email=f"user_{uuid4()}@example.com",
-        password="123"
-    )
-    db_session.add(user)
-    db_session.commit()
-    return user
-
-@pytest.fixture
-def create_agent(db_session, create_user):
+# ----------------------
+# Helpers
+# ----------------------
+def create_agent_in_db(db, name="AgenteTeste", provider="ollama", model="llama3"):
     agent = Agent(
-        name="Agent Test",
-        model="gpt-3.5-turbo",
+        name=name,
+        model=model,
         temperature=0.5,
-        owner=create_user
+        owner_id=1,
+        provider=provider,
+        base_url="http://localhost:11434",
     )
-    db_session.add(agent)
-    db_session.commit()
-    db_session.refresh(agent)
+    db.add(agent)
+    db.commit()
+    db.refresh(agent)
     return agent
 
-def test_list_agents(db_session, create_agent):
-    response = client.get("/api/v1/agents/")
+
+# ----------------------
+# Tests
+# ----------------------
+def test_create_agent():
+    payload = {
+        "name": "Agente 1",
+        "model": "llama3",
+        "temperature": 0.7,
+        "owner_id": 1,
+        "provider": "ollama",
+        "base_url": "http://localhost:11434"
+    }
+    response = client.post("/agents/", json=payload)
     assert response.status_code == 200
     data = response.json()
-    assert any(a["id"] == create_agent.id for a in data)
+    assert data["name"] == "Agente 1"
+    assert data["model"] == "llama3"
+
+
+def test_list_agents():
+    response = client.get("/agents/")
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)
+    assert len(data) >= 1
+
+
+def test_run_agent_stream(monkeypatch):
+    db = next(override_get_db())
+    agent = create_agent_in_db(db)
+
+    # mock do ChatOllama stream
+    class DummyStream:
+        def __init__(self, content):
+            self.content = content
+
+    def fake_stream(prompt):
+        yield DummyStream("Olá")
+        yield DummyStream(" mundo!")
+
+    monkeypatch.setattr("app.api.v1.agents.ChatOllama.stream", fake_stream)
+
+    payload = {"input": "Diga olá"}
+    response = client.post(f"/agents/{agent.id}/run/stream", json=payload)
+
+    assert response.status_code == 200
+    # streaming retorna NDJSON → juntar chunks
+    lines = [line for line in response.iter_lines() if line]
+    assert any(b"Ol\xc3\xa1" in l for l in lines)
+
+def test_list_agent_costs(monkeypatch):
+    db = next(override_get_db())
+    agent = create_agent_in_db(db, name="AgenteCustos")
+
+    # mock: não deixar erro se não houver custos
+    from app.models.execution_cost import ExecutionCost
+    db.add(ExecutionCost(execution_id=1, agent_id=agent.id, cost=0.123))
+    db.commit()
+
+    response = client.get(f"/agents/{agent.id}/costs")
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)
+    assert data[0]["cost"] == 0.123
