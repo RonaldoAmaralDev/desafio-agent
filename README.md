@@ -161,8 +161,8 @@ pytest tests/ --cov=src
 Para resetar completamente o banco de dados (apagar e recriar as tabelas), use o script:
 ```bash
 ./scripts/reset-db.sh
-```  
 ⚠️ Atenção: todos os dados existentes serão removidos.
+```  
 ---
 
 ## 📈 Diferenciais Implementados  
