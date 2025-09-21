@@ -2,19 +2,22 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 from app.main import app
 from app.core.db import Base, get_db
 from app.models.agent import Agent
 from app.models.execution_cost import ExecutionCost
 
 # ----------------------
-# Configuração banco de teste (SQLite in-memory)
+# Configuração banco de teste (SQLite in-memory compartilhado)
 # ----------------------
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-Base.metadata.create_all(bind=engine)
 
 
 def override_get_db():
@@ -26,8 +29,10 @@ def override_get_db():
 
 
 app.dependency_overrides[get_db] = override_get_db
-client = TestClient(app)
+Base.metadata.drop_all(bind=engine)
+Base.metadata.create_all(bind=engine)
 
+client = TestClient(app)
 
 # ----------------------
 # Helpers
@@ -62,17 +67,15 @@ def test_get_agent_costs_success():
     agent = create_agent(db)
     create_execution_cost(db, agent.id, cost=0.456)
 
-    response = client.get(f"/costs/agent/{agent.id}")
-    assert response.status_code == 200
+    response = client.get(f"/api/v1/agents/{agent.id}/costs")
+    assert response.status_code == 200, response.text
     data = response.json()
-    assert data["agent_id"] == agent.id
-    assert data["total_cost"] > 0
-    assert isinstance(data["executions"], list)
-    assert len(data["executions"]) >= 1
+    assert isinstance(data, list)
+    assert any(c["cost"] == 0.456 for c in data)
 
 
 def test_get_agent_costs_not_found():
-    response = client.get("/costs/agent/999")
-    assert response.status_code == 404
+    response = client.get("/api/v1/agents/999/costs")
+    assert response.status_code == 404, response.text
     data = response.json()
     assert "Nenhum custo encontrado" in data["detail"]
