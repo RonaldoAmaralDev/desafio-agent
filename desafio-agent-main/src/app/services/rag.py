@@ -48,7 +48,7 @@ class RagService:
             base_url=self.ollama_url
         )
 
-    def query(self, query: str, agent_id: int | None = None) -> str:
+    def query_rag(self, query: str, agent_id: int | None = None) -> str:
         """
         Executa uma query RAG e retorna resposta em português.
         """
@@ -71,3 +71,6 @@ class RagService:
         except Exception as e:
             logger.error(f"Erro no RAG: {str(e)}")
             raise
+
+
+__all__ = ["RagService"]

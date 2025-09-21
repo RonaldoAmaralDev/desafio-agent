@@ -1,11 +1,13 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
-from app.services import rag, rag_index
 from app.schemas.rag import QueryRequest, QueryResponse, UploadResponse
 from app.core.logging import get_logger
+from app.services.rag import RagService
+from app.services.rag_index import index_document
 
 router = APIRouter(prefix="/rag", tags=["RAG"])
 logger = get_logger(__name__)
 
+rag_service = RagService()
 
 @router.post("/query", response_model=QueryResponse, summary="Consultar documentos indexados (RAG)")
 def rag_query(payload: QueryRequest):
@@ -14,7 +16,7 @@ def rag_query(payload: QueryRequest):
     """
     logger.info(f"Consulta RAG recebida: {payload.question}")
     try:
-        result = rag.query_rag(payload.question)
+        result = rag_service.query_rag(payload.question)
         logger.info("Consulta RAG concluída com sucesso")
         return {"answer": result}
     except Exception as e:
@@ -29,7 +31,7 @@ async def rag_upload(file: UploadFile = File(...)):
     """
     logger.info(f"Upload de arquivo para indexação: {file.filename}")
     try:
-        result = rag_index.index_document(file)
+        result = await index_document(file)
         logger.info(f"Arquivo indexado com sucesso: {file.filename}")
         return result
     except Exception as e:
