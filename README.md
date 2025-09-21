@@ -113,7 +113,7 @@ docker compose up --build
 
 ### Acesso  
 - API: [http://localhost:8000/docs](http://localhost:8000/docs)  
-- Health Check: [http://localhost:8000/health](http://localhost:8000/health)  
+- Health Check: [http://localhost:8000/api/v1/health/](http://localhost:8000/api/v1/health/)  
 - Frontend: [http://localhost:5173](http://localhost:5173)  
 
 ---

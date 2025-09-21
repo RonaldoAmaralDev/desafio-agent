@@ -23,4 +23,4 @@ api_router.include_router(rag.router, tags=["RAG"])
 api_router.include_router(agent_export.router, tags=["Agents Export/Import"])
 
 # Healthcheck (sem versão, endpoint raiz)
-api_router.include_router(health.router, prefix="", tags=["Health"])
+api_router.include_router(health.router, tags=["Health"])
