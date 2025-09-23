@@ -20,9 +20,16 @@ class AgentExecutionService:
     def run_stream(self, db, agent, user_input: str):
         full_answer, cost, usage = "", 0.0, {}
 
+        history = memory_service.get(agent.id) or ""
+        final_input = f"Histórico da conversa:\n{history}\n\nUsuário: {user_input}\nAgente:"
+
         if agent.provider == "ollama":
-            llm = ChatOllama(model=agent.model, base_url=agent.base_url, temperature=agent.temperature or 0)
-            for chunk in llm.stream(user_input):
+            llm = ChatOllama(
+                model=agent.model,
+                base_url=agent.base_url,
+                temperature=agent.temperature or 0
+            )
+            for chunk in llm.stream(final_input):
                 token = chunk.content or ""
                 full_answer += token
                 yield {"type": "token", "content": token}
@@ -30,8 +37,12 @@ class AgentExecutionService:
             cost = len(full_answer) * 0.001
 
         elif agent.provider == "openai":
-            llm = ChatOpenAI(model=agent.model, api_key=os.getenv("OPENAI_API_KEY"), temperature=agent.temperature or 0)
-            for chunk in llm.stream(user_input):
+            llm = ChatOpenAI(
+                model=agent.model,
+                api_key=os.getenv("OPENAI_API_KEY"),
+                temperature=agent.temperature or 0
+            )
+            for chunk in llm.stream(final_input):
                 token = chunk.content or ""
                 full_answer += token
                 yield {"type": "token", "content": token}
@@ -45,8 +56,8 @@ class AgentExecutionService:
             yield {"type": "error", "message": f"Provider {agent.provider} não suportado"}
             return
 
+        # 🔹 Salva execução e memória
         execution = execution_service.create_execution(db, agent, user_input, full_answer, cost)
-
         memory_service.add_interaction(agent.id, user_input, full_answer)
         history = memory_service.get(agent.id)
 
